@@ -65,19 +65,4 @@ public static class ServiceCollectionExtensions
         return services.AddHardenHmac(config, secretResolver);
     }
 
-    /// <summary>
-    /// Add a named HttpClient with HardenHMAC signing handler.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="name">HttpClient name.</param>
-    /// <param name="config">HMAC configuration.</param>
-    /// <returns>The IHttpClientBuilder for further configuration.</returns>
-    public static IHttpClientBuilder AddHardenHmacClient(
-        this IServiceCollection services,
-        string name,
-        HmacConfig config)
-    {
-        return services.AddHttpClient(name)
-            .AddHttpMessageHandler(() => new HardenHmacDelegatingHandler(config));
-    }
 }

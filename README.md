@@ -55,15 +55,21 @@ using HardenLabs.Hmac.AspNetCore;
 var config = new HmacConfig
 {
     SharedSecretBase64 = "your-base64-encoded-secret",
-    SignedHeaders = SignedHeadersConfig.Default
+    SignedHeaders = SignedHeadersConfig.Default,
+    Targets = new Dictionary<string, HmacTargetConfig>
+    {
+        ["my-service"] = new HmacTargetConfig
+        {
+            BaseUrl = "https://api.example.com",
+            SharedSecret = "your-base64-encoded-secret",
+        }
+    }
 };
 
-// Register a named HttpClient that auto-signs requests
-builder.Services.AddHardenHmacClient("my-service", config)
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.example.com"));
+builder.Services.AddHardenHmac(config);
 
-// Use it via IHttpClientFactory
-var client = factory.CreateClient("my-service");
+// Use IHardenHmacClientFactory to create per-target clients
+var client = factory.CreateClient("my-service"); // BaseAddress + signing pre-configured
 var response = await client.GetAsync("/api/hello"); // automatically signed
 ```
 
@@ -335,10 +341,7 @@ Headers are sorted alphabetically by lowercase name, values are trimmed, and the
 // Server-side validation
 app.UseHardenHmac();
 
-// Client-side signing via named HttpClient
-builder.Services.AddHardenHmacClient("service-name", config);
-
-// Or via multi-target factory
+// Client-side signing via multi-target factory
 builder.Services.AddHardenHmac(config);
 var client = factory.CreateClient("order-service"); // from IHardenHmacClientFactory
 

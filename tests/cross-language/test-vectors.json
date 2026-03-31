@@ -1,0 +1,365 @@
+{
+  "version": "1.0",
+  "description": "HardenHMAC cross-language test vectors. These vectors are authoritative: if an implementation disagrees, the implementation is wrong.",
+  "vectors": [
+    {
+      "id": "basic-get",
+      "description": "Basic GET request with no body and no signed headers",
+      "method": "GET",
+      "path": "/api/users",
+      "body": "",
+      "timestamp": 1700000000,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/users\n\n\n1700000000",
+      "expected_signature": "9e0350740f4ac5444c58d10dbe4af08608916b287f517640877a2ea4145348a8"
+    },
+    {
+      "id": "post-json-body",
+      "description": "POST request with JSON body, no signed headers",
+      "method": "POST",
+      "path": "/api/users",
+      "body": "{\"name\":\"Alice\",\"email\":\"alice@example.com\"}",
+      "timestamp": 1700000001,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "POST\n/api/users\n\n{\"name\":\"Alice\",\"email\":\"alice@example.com\"}\n1700000001",
+      "expected_signature": "274cc829b6071885da9946b2ffdb8ef42a07591e661d43106cbacc85e66546d7"
+    },
+    {
+      "id": "put-with-query-params",
+      "description": "PUT request with query parameters and body",
+      "method": "PUT",
+      "path": "/api/users/123?active=true&role=admin",
+      "body": "{\"name\":\"Bob\"}",
+      "timestamp": 1700000002,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "PUT\n/api/users/123?active=true&role=admin\n\n{\"name\":\"Bob\"}\n1700000002",
+      "expected_signature": "72e837433046db507d8edd5a384b41d6b3374f5b0aee9b7ed83ea7e0618a1dae"
+    },
+    {
+      "id": "delete-no-body",
+      "description": "DELETE request with no body",
+      "method": "DELETE",
+      "path": "/api/users/456",
+      "body": "",
+      "timestamp": 1700000003,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "DELETE\n/api/users/456\n\n\n1700000003",
+      "expected_signature": "1e28db171878a6f582cf8e36247b36e4995d4d8f0399a27e5fc94dffcb1a7405"
+    },
+    {
+      "id": "signed-headers-auth-and-x",
+      "description": "POST with Authorization and X-Request-Id signed headers",
+      "method": "POST",
+      "path": "/api/orders",
+      "body": "{\"item\":\"widget\",\"qty\":5}",
+      "timestamp": 1700000004,
+      "signed_headers_config": {
+        "include_authorization": true,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.test",
+        "X-Request-Id": "req-abc-123",
+        "Content-Type": "application/json",
+        "X-Harden-Timestamp": "1700000004"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "POST\n/api/orders\nauthorization:Bearer eyJhbGciOiJIUzI1NiJ9.test\nx-request-id:req-abc-123\n{\"item\":\"widget\",\"qty\":5}\n1700000004",
+      "expected_signature": "140af6f8fe886e5fb6591322ea506166b76342b95fdc7101d9b5d20c6674d7a3"
+    },
+    {
+      "id": "patch-empty-body",
+      "description": "PATCH request with explicitly empty body",
+      "method": "PATCH",
+      "path": "/api/users/789/activate",
+      "body": "",
+      "timestamp": 1700000005,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "PATCH\n/api/users/789/activate\n\n\n1700000005",
+      "expected_signature": "3746d390d6a7ce3a060875a46258ff6f5638c317d5a2c8301915135006350b23"
+    },
+    {
+      "id": "special-characters",
+      "description": "Request with special characters in path (URL-encoded) and body",
+      "method": "POST",
+      "path": "/api/v2/messages?filter=type%3Durgent&lang=en",
+      "body": "{\"message\":\"Hello, world! Special chars: <>&\\\"'\\n\\ttab\"}",
+      "timestamp": 1700000006,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "POST\n/api/v2/messages?filter=type%3Durgent&lang=en\n\n{\"message\":\"Hello, world! Special chars: <>&\\\"'\\n\\ttab\"}\n1700000006",
+      "expected_signature": "d5687495d70182c18f320f29108779d5912008506e400017900e6fba249b349b"
+    },
+    {
+      "id": "multiple-signed-headers-sort-order",
+      "description": "Multiple signed headers verifying alphabetical sort order",
+      "method": "POST",
+      "path": "/api/data",
+      "body": "{\"key\":\"value\"}",
+      "timestamp": 1700000007,
+      "signed_headers_config": {
+        "include_authorization": true,
+        "include_x_headers": true,
+        "additional_headers": [
+          "Content-Type"
+        ],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "Authorization": "Bearer token123",
+        "Content-Type": "application/json",
+        "X-Custom-A": "value-a",
+        "X-Custom-B": "value-b",
+        "Accept": "application/json",
+        "X-Harden-Signature": "will-be-excluded"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "POST\n/api/data\nauthorization:Bearer token123\ncontent-type:application/json\nx-custom-a:value-a\nx-custom-b:value-b\n{\"key\":\"value\"}\n1700000007",
+      "expected_signature": "8bac442ca9440a154e2b815ac07cb9434c9cd70f30887d4dbc445ef365218e6e"
+    },
+    {
+      "id": "different-secret-key",
+      "description": "Same request structure with a different shared secret",
+      "method": "GET",
+      "path": "/api/health",
+      "body": "",
+      "timestamp": 1700000008,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "YW5vdGhlci10ZXN0LWtleS0yNTYtYml0cy1sb25nISE=",
+      "expected_canonical_string": "GET\n/api/health\n\n\n1700000008",
+      "expected_signature": "8d85b52a8683a30186c828e80a3c605c824bbae39c5de295029db4b9ac1769f2"
+    },
+    {
+      "id": "signed-headers-with-exclude",
+      "description": "Signed headers with exclude override removing X-Custom-B",
+      "method": "GET",
+      "path": "/api/filtered",
+      "body": "",
+      "timestamp": 1700000009,
+      "signed_headers_config": {
+        "include_authorization": true,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": [
+          "X-Custom-B"
+        ]
+      },
+      "request_headers": {
+        "Authorization": "Bearer excluded-test",
+        "X-Custom-A": "keep-this",
+        "X-Custom-B": "exclude-this"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/filtered\nauthorization:Bearer excluded-test\nx-custom-a:keep-this\n\n1700000009",
+      "expected_signature": "c224b647e5b2df3a55c9a1391d900f6f703f2ccc5f8f98994afe742b73fec0b3"
+    },
+    {
+      "id": "header-value-trimming",
+      "description": "Signed headers with whitespace that should be trimmed",
+      "method": "GET",
+      "path": "/api/trim-test",
+      "body": "",
+      "timestamp": 1700000010,
+      "signed_headers_config": {
+        "include_authorization": true,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "Authorization": "  Bearer spaced-token  ",
+        "X-Padded": "  trimmed-value  "
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/trim-test\nauthorization:Bearer spaced-token\nx-padded:trimmed-value\n\n1700000010",
+      "expected_signature": "50127dd5c04b92c70e66e4b9c344d3d96a516c0c36d45a5091391ac8aebf5a55"
+    },
+    {
+      "id": "root-path",
+      "description": "GET request to root path",
+      "method": "GET",
+      "path": "/",
+      "body": "",
+      "timestamp": 1700000011,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/\n\n\n1700000011",
+      "expected_signature": "f9d5031d38a672e1f7da0fd9ac555b524a7f77e217aaa40cf5747c3cd819b83f"
+    },
+    {
+      "id": "unicode-body",
+      "description": "POST with unicode characters in body",
+      "method": "POST",
+      "path": "/api/i18n",
+      "body": "{\"greeting\":\"\u00e9\u00e0\u00fc\u00f1\"}",
+      "timestamp": 1700000012,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "POST\n/api/i18n\n\n{\"greeting\":\"\u00e9\u00e0\u00fc\u00f1\"}\n1700000012",
+      "expected_signature": "e4ff34becad99a262743b76d6b05f6ed15188d348fc4a5650b671f04f959055c"
+    },
+    {
+      "id": "mixed-case-method",
+      "description": "Mixed-case HTTP method (gEt) must be uppercased before signing",
+      "method": "gEt",
+      "path": "/api/mixed-case",
+      "body": "",
+      "timestamp": 1700000020,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/mixed-case\n\n\n1700000020",
+      "expected_signature": "8814635deeb7c45f4310e4e502036acfb37b03b4a63ef4cf3f3432068a38be95"
+    },
+    {
+      "id": "empty-header-value",
+      "description": "Signed header with empty string value produces 'name:' with no value after colon",
+      "method": "GET",
+      "path": "/api/empty-header",
+      "body": "",
+      "timestamp": 1700000021,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "X-Empty": ""
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/empty-header\nx-empty:\n\n1700000021",
+      "expected_signature": "f5df36018d547d888522897cda0a44a6191c1b442cfb140ad767534b37cbe5ec"
+    },
+    {
+      "id": "future-timestamp-at-boundary",
+      "description": "Future timestamp at exact tolerance boundary (delta = -30 with tolerance 30) should pass validation",
+      "method": "GET",
+      "path": "/api/future-boundary",
+      "body": "",
+      "timestamp": 1700000050,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {},
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/future-boundary\n\n\n1700000050",
+      "expected_signature": "fe15737ceed1cc10233d26d09c1c743acf1c4e691b8fa8e49a0dcfe20524c2da",
+      "_validation_context": {
+        "current_timestamp": 1700000020,
+        "tolerance_seconds": 30,
+        "expected_result": "pass"
+      }
+    },
+    {
+      "id": "auth-excluded-when-disabled",
+      "description": "Authorization header present but include_authorization=false, so it must NOT appear in signed headers",
+      "method": "GET",
+      "path": "/api/auth-excluded",
+      "body": "",
+      "timestamp": 1700000022,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "Authorization": "Bearer should-not-be-signed",
+        "X-Request-Id": "req-999"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/auth-excluded\nx-request-id:req-999\n\n1700000022",
+      "expected_signature": "14749163462f613903576c09895ba5b37178a4af58cf093ba0cd22839ddb088e"
+    },
+    {
+      "id": "multi-value-header",
+      "description": "X-* header with comma-separated multiple values (as duplicate HTTP headers would be merged)",
+      "method": "GET",
+      "path": "/api/multi-value",
+      "body": "",
+      "timestamp": 1700000023,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "X-Multi": "value1, value2"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/multi-value\nx-multi:value1, value2\n\n1700000023",
+      "expected_signature": "bc9b42af0656e5c66ee3a22663b9a477e819005027f020f1a7a2839a9f5f2c55"
+    }
+  ]
+}

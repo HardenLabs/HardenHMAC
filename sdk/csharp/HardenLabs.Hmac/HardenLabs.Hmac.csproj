@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>HardenLabs.Hmac</RootNamespace>
+    <PackageId>HardenLabs.Hmac</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>HardenLabs</Authors>
+    <Description>Cross-language HMAC-SHA256 request signing with a defined canonical string format.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/HardenLabs/HardenHMAC</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/HardenLabs/HardenHMAC</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,62 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+const BASE64_REGEX = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/**
+ * Validate that a string is valid standard Base64.
+ * Throws a descriptive error if the input contains invalid characters.
+ */
+function validateBase64(input: string, label: string): void {
+  const stripped = input.replace(/\s/g, "");
+  if (stripped.length === 0) {
+    throw new Error(`${label} is empty after stripping whitespace.`);
+  }
+  if (!BASE64_REGEX.test(stripped)) {
+    throw new Error(
+      `${label} is not valid Base64. Contains characters outside the Base64 alphabet.`
+    );
+  }
+}
+
+/**
+ * Compute the HMAC-SHA256 signature of a canonical string.
+ *
+ * @param sharedSecretBase64 - The shared secret as a Base64-encoded string.
+ * @param canonicalString - The canonical string to sign.
+ * @returns Lowercase hexadecimal signature string (64 characters).
+ */
+export function sign(
+  sharedSecretBase64: string,
+  canonicalString: string
+): string {
+  validateBase64(sharedSecretBase64, "sharedSecretBase64");
+  const keyBytes = Buffer.from(sharedSecretBase64, "base64");
+  const hmac = createHmac("sha256", keyBytes);
+  hmac.update(canonicalString, "utf8");
+  return hmac.digest("hex");
+}
+
+/**
+ * Verify a signature against a canonical string using constant-time comparison.
+ *
+ * @param sharedSecretBase64 - The shared secret as a Base64-encoded string.
+ * @param canonicalString - The canonical string that was signed.
+ * @param signature - The signature to verify (64-char lowercase hex).
+ * @returns True if the signature is valid.
+ */
+export function verify(
+  sharedSecretBase64: string,
+  canonicalString: string,
+  signature: string
+): boolean {
+  validateBase64(sharedSecretBase64, "sharedSecretBase64");
+  const expected = sign(sharedSecretBase64, canonicalString);
+  const expectedBuf = Buffer.from(expected, "utf8");
+  const signatureBuf = Buffer.from(signature, "utf8");
+
+  if (expectedBuf.length !== signatureBuf.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expectedBuf, signatureBuf);
+}

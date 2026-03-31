@@ -1,4 +1,5 @@
 import type {
+  HmacClientIdentity,
   HmacConfig,
   HmacTargetConfig,
   SignedHeadersConfig,
@@ -146,9 +147,33 @@ export async function fromEnv(
     };
   }
 
+  // Parse clients: keys matching CLIENTS__{NAME}__{FIELD}
+  const clientFields: Record<string, Record<string, string>> = {};
+  const clientPrefix = "CLIENTS__";
+  for (const [key, value] of Object.entries(prefixed)) {
+    if (!key.startsWith(clientPrefix)) continue;
+    const rest = key.substring(clientPrefix.length);
+    const separatorIndex = rest.indexOf("__");
+    if (separatorIndex === -1) continue;
+    const clientName = rest.substring(0, separatorIndex).toLowerCase().replace(/_/g, "-");
+    const fieldName = rest.substring(separatorIndex + 2).toUpperCase();
+    if (!clientFields[clientName]) {
+      clientFields[clientName] = {};
+    }
+    clientFields[clientName][fieldName] = value;
+  }
+
+  const clients: Record<string, HmacClientIdentity> = {};
+  for (const [name, fields] of Object.entries(clientFields)) {
+    clients[name] = {
+      sharedSecret: fields["SHARED_SECRET"] ?? "",
+    };
+  }
+
   return {
     sharedSecretBase64,
     targets: Object.keys(targets).length > 0 ? targets : undefined,
+    clients: Object.keys(clients).length > 0 ? clients : undefined,
     signedHeaders,
     timestampToleranceSeconds,
   };

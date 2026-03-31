@@ -1,5 +1,5 @@
 import type { HmacConfig } from "./config.js";
-import { configForTarget } from "./config.js";
+import { CLIENT_ID_HEADER, configForTarget } from "./config.js";
 import { signRequestHeaders } from "./middleware/fetch.js";
 
 /** Factory for creating pre-configured fetch wrappers per named target. */
@@ -12,7 +12,7 @@ export interface HmacClientFactory {
    * @returns A fetch-like function that auto-signs requests.
    * @throws {Error} If the target name is not found.
    */
-  createFetch(
+  createClient(
     targetName: string
   ): (path: string, init?: RequestInit) => Promise<Response>;
 }
@@ -31,7 +31,7 @@ export function createHmacClientFactory(
   const baseFetch = fetchFn ?? globalThis.fetch;
 
   return {
-    createFetch(
+    createClient(
       targetName: string
     ): (path: string, init?: RequestInit) => Promise<Response> {
       const target = config.targets?.[targetName];
@@ -67,8 +67,10 @@ export function createHmacClientFactory(
           }
         }
 
-        // Collect existing headers
-        const existingHeaders: Record<string, string> = {};
+        // Collect existing headers, including the client ID
+        const existingHeaders: Record<string, string> = {
+          [CLIENT_ID_HEADER]: targetName,
+        };
         if (init?.headers) {
           if (init.headers instanceof Headers) {
             init.headers.forEach((value, key) => {

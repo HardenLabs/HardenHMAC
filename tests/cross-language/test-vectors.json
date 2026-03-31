@@ -360,6 +360,50 @@
       "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
       "expected_canonical_string": "GET\n/api/multi-value\nx-multi:value1, value2\n\n1700000023",
       "expected_signature": "bc9b42af0656e5c66ee3a22663b9a477e819005027f020f1a7a2839a9f5f2c55"
+    },
+    {
+      "id": "client-id-signed",
+      "description": "X-Harden-Client-Id is included in signed headers (identity claim, not signing metadata)",
+      "method": "POST",
+      "path": "/api/orders",
+      "body": "{\"item\":\"widget\"}",
+      "timestamp": 1700000030,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "X-Harden-Client-Id": "order-service",
+        "X-Request-Id": "req-001"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "POST\n/api/orders\nx-harden-client-id:order-service\nx-request-id:req-001\n{\"item\":\"widget\"}\n1700000030",
+      "expected_signature": "8ff5362eab475aeb56bf754ab32c716cd871f7058bd8a946ce505335ec5c33ce"
+    },
+    {
+      "id": "harden-headers-excluded-except-client-id",
+      "description": "X-Harden-Signature and X-Harden-Timestamp are excluded but X-Harden-Client-Id is included",
+      "method": "GET",
+      "path": "/api/test",
+      "body": "",
+      "timestamp": 1700000031,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "X-Harden-Client-Id": "foo",
+        "X-Harden-Signature": "should-be-excluded",
+        "X-Harden-Timestamp": "9999999999",
+        "X-Request-Id": "req-002"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/test\nx-harden-client-id:foo\nx-request-id:req-002\n\n1700000031",
+      "expected_signature": "b8f34b8bfada90f9fc4d01afefe8e75ca4ce4263ba3ef163e2729ec657e9d226"
     }
   ]
 }

@@ -50,7 +50,7 @@ Selected request headers, sorted and formatted according to the signed headers c
    - If `include_x_headers` is true, include all `X-*` headers EXCEPT those matching `X-Harden-*`
    - Include any headers listed in `additional_headers` (case-insensitive match)
 2. Remove any headers listed in `exclude_headers` (case-insensitive match)
-3. Always remove `X-Harden-*` headers regardless of configuration
+3. Always remove `X-Harden-*` headers regardless of configuration, **except** `X-Harden-Client-Id` which is an identity claim and MUST be included when present (it is treated as a regular `X-*` header for signing purposes)
 4. Convert each header name to lowercase
 5. Trim leading and trailing whitespace from each header value
 6. Sort headers alphabetically by lowercase name (lexicographic, ASCII order)

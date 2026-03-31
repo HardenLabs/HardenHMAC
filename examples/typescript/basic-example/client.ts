@@ -29,8 +29,8 @@ const factory = createHmacClientFactory(config);
 
 async function main(): Promise<void> {
   // Each fetch wrapper has base URL and signing pre-configured from the target
-  const ordersFetch = factory.createFetch("order-service");
-  const paymentsFetch = factory.createFetch("payment-service");
+  const ordersFetch = factory.createClient("order-service");
+  const paymentsFetch = factory.createClient("payment-service");
 
   // GET — base URL is prepended automatically
   const getResp = await ordersFetch("/api/hello");

@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from hardenlabs_hmac.config import SIGNATURE_HEADER, TIMESTAMP_HEADER, HmacConfig
+from hardenlabs_hmac.config import CLIENT_ID_HEADER, SIGNATURE_HEADER, TIMESTAMP_HEADER, HmacConfig
 from hardenlabs_hmac.exceptions import HmacValidationError
 from hardenlabs_hmac.validation import validate_request
 
@@ -62,8 +62,21 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
         signature_header = request.headers.get(SIGNATURE_HEADER.lower())
         timestamp_header = request.headers.get(TIMESTAMP_HEADER.lower())
 
-        # Resolve secret: try resolver first, then fall back to config
-        effective_secret = await self._resolve_secret(request)
+        # Resolve secret: try resolver, then Clients dict, then config fallback
+        effective_secret, resolve_error = await self._resolve_secret(request)
+
+        if resolve_error is not None:
+            error_type, error_message = resolve_error
+            logger.warning(
+                "HMAC validation failed: %s for %s %s",
+                error_type,
+                request.method,
+                path,
+            )
+            return JSONResponse(
+                status_code=401,
+                content={"error": error_type, "message": error_message},
+            )
 
         if not effective_secret:
             logger.warning(
@@ -113,11 +126,28 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
         )
         return await call_next(request)
 
-    async def _resolve_secret(self, request: Request) -> str | None:
-        """Resolve the effective shared secret for this request."""
+    async def _resolve_secret(self, request: Request) -> tuple[str | None, tuple[str, str] | None]:
+        """Resolve the effective shared secret for this request.
+
+        Returns:
+            Tuple of (secret, error). If error is not None, the request should
+            be rejected with a 401 containing the error tuple (error_type, message).
+        """
+        # 1. secretResolver callback (if provided) takes highest priority
         if self.secret_resolver is not None:
             resolved = await self.secret_resolver(request)
             if resolved:
-                return resolved
+                return resolved, None
 
-        return self.config.shared_secret_base64 or None
+        # 2. X-Harden-Client-Id header -> look up in config.clients
+        client_id = request.headers.get(CLIENT_ID_HEADER.lower())
+        if client_id:
+            if client_id in self.config.clients:
+                client_identity = self.config.clients[client_id]
+                if client_identity.shared_secret:
+                    return client_identity.shared_secret, None
+            # Client ID was provided but not found in clients dictionary
+            return None, ("unknown_client", f"Client '{client_id}' is not configured.")
+
+        # 3. Fall back to config.shared_secret_base64
+        return self.config.shared_secret_base64 or None, None

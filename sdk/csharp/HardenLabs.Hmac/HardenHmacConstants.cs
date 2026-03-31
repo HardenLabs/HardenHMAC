@@ -14,6 +14,9 @@ public static class HardenHmacConstants
     /// <summary>Header containing semicolon-separated signed header names.</summary>
     public const string SignedHeadersHeader = "X-Harden-Signed-Headers";
 
+    /// <summary>Header containing the client identifier for multi-client server resolution.</summary>
+    public const string ClientIdHeader = "X-Harden-Client-Id";
+
     /// <summary>Prefix for Harden-internal headers (always excluded from signing).</summary>
     public const string HardenHeaderPrefix = "X-Harden-";
 

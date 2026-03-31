@@ -3,13 +3,20 @@ using HardenLabs.Hmac.AspNetCore;
 
 // In production, load from appsettings.json or environment variables:
 //   builder.Services.AddHardenHmac(builder.Configuration.GetSection("HardenHmac"));
-var sharedSecret = Convert.ToBase64String("my-shared-secret-key-32-bytes!!"u8.ToArray());
+var ordersSecret = Convert.ToBase64String("orders-secret-key-32-bytes!!!!!"u8.ToArray());
+var paymentsSecret = Convert.ToBase64String("payments-secret-key-32-bytes!!"u8.ToArray());
+var defaultSecret = Convert.ToBase64String("my-shared-secret-key-32-bytes!!"u8.ToArray());
 
 var config = new HmacConfig
 {
-    SharedSecretBase64 = sharedSecret,
+    SharedSecretBase64 = defaultSecret, // fallback when no X-Harden-Client-Id header
     SignedHeaders = SignedHeadersConfig.Default,
     TimestampToleranceSeconds = 30,
+    Clients = new Dictionary<string, HmacClientIdentity>
+    {
+        ["order-service"] = new HmacClientIdentity { SharedSecret = ordersSecret },
+        ["payment-service"] = new HmacClientIdentity { SharedSecret = paymentsSecret },
+    },
 };
 
 var builder = WebApplication.CreateBuilder(args);

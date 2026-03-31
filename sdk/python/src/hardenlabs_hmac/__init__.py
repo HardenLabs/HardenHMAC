@@ -2,7 +2,7 @@
 
 from hardenlabs_hmac.canonical import build_canonical_string
 from hardenlabs_hmac.client import sign_request_headers
-from hardenlabs_hmac.config import HmacConfig, SignedHeadersConfig
+from hardenlabs_hmac.config import HmacClientIdentity, HmacConfig, SignedHeadersConfig
 from hardenlabs_hmac.exceptions import HmacValidationError
 from hardenlabs_hmac.signing import sign, verify
 from hardenlabs_hmac.validation import validate_request
@@ -13,6 +13,7 @@ __all__ = [
     "sign_request_headers",
     "verify",
     "validate_request",
+    "HmacClientIdentity",
     "HmacConfig",
     "SignedHeadersConfig",
     "HmacValidationError",

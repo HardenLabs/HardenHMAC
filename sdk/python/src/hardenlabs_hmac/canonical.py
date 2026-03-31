@@ -1,6 +1,7 @@
 """Canonical string builder for HardenHMAC v1.0 specification."""
 
 from hardenlabs_hmac.config import (
+    CLIENT_ID_HEADER_LOWER,
     HARDEN_HEADER_PREFIX,
     X_HEADER_PREFIX,
     SignedHeadersConfig,
@@ -85,8 +86,9 @@ def _select_headers(
         lower_name = name.lower()
         trimmed_value = value.strip()
 
-        # Always exclude X-Harden-* headers
-        if lower_name.startswith(HARDEN_HEADER_PREFIX):
+        # Always exclude X-Harden-* headers, EXCEPT X-Harden-Client-Id
+        # (client identity is an identity claim, not signing metadata)
+        if lower_name.startswith(HARDEN_HEADER_PREFIX) and lower_name != CLIENT_ID_HEADER_LOWER:
             continue
 
         include = False
@@ -94,10 +96,9 @@ def _select_headers(
         if config.include_authorization and lower_name == "authorization":
             include = True
 
-        if (
-            config.include_x_headers
-            and lower_name.startswith(X_HEADER_PREFIX)
-            and not lower_name.startswith(HARDEN_HEADER_PREFIX)
+        if config.include_x_headers and lower_name.startswith(X_HEADER_PREFIX) and (
+            not lower_name.startswith(HARDEN_HEADER_PREFIX)
+            or lower_name == CLIENT_ID_HEADER_LOWER
         ):
             include = True
 

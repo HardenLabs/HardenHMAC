@@ -25,6 +25,13 @@ public sealed class HmacConfig
     public Dictionary<string, HmacTargetConfig> Targets { get; set; } = new();
 
     /// <summary>
+    /// Named client identities for server-side multi-client secret resolution.
+    /// When a request includes <c>X-Harden-Client-Id</c>, the middleware looks up
+    /// the client name in this dictionary to find the appropriate shared secret.
+    /// </summary>
+    public Dictionary<string, HmacClientIdentity> Clients { get; set; } = new();
+
+    /// <summary>
     /// Configuration for which headers to include in the signature.
     /// Individual targets can override this.
     /// </summary>

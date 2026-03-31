@@ -39,6 +39,7 @@ def load_config_from_env(
         Parsed HmacConfig.
     """
     from hardenlabs_hmac.config import (
+        HmacClientIdentity,
         HmacConfig,
         HmacTargetConfig,
         SignedHeadersConfig,
@@ -114,9 +115,32 @@ def load_config_from_env(
             timestamp_tolerance_seconds=target_tolerance,
         )
 
+    # Parse clients: keys matching CLIENTS__{NAME}__{FIELD}
+    clients: dict[str, dict[str, str]] = {}
+    client_prefix = "CLIENTS__"
+    for key, value in prefixed.items():
+        if not key.startswith(client_prefix):
+            continue
+        rest = key[len(client_prefix):]
+        parts = rest.split("__", 1)
+        if len(parts) != 2:
+            continue
+        client_name = parts[0].lower().replace("_", "-")
+        field_name = parts[1].upper()
+        if client_name not in clients:
+            clients[client_name] = {}
+        clients[client_name][field_name] = value
+
+    client_configs: dict[str, HmacClientIdentity] = {}
+    for name, fields in clients.items():
+        client_configs[name] = HmacClientIdentity(
+            shared_secret=fields.get("SHARED_SECRET", ""),
+        )
+
     return HmacConfig(
         shared_secret_base64=shared_secret,
         targets=target_configs,
+        clients=client_configs,
         signed_headers=signed_headers,
         timestamp_tolerance_seconds=timestamp_tolerance,
     )

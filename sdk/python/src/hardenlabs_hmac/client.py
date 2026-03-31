@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from hardenlabs_hmac.canonical import build_canonical_string, build_signed_headers
 from hardenlabs_hmac.config import (
+    CLIENT_ID_HEADER,
     SIGNATURE_HEADER,
     SIGNED_HEADERS_HEADER,
     TIMESTAMP_HEADER,
@@ -66,14 +67,25 @@ class HmacTransport:
     """httpx transport that automatically signs outgoing requests with HMAC.
 
     Used internally by HmacClientFactory. Wraps an existing transport.
+    Optionally adds an X-Harden-Client-Id header to identify the client to the server.
     """
 
-    def __init__(self, config: HmacConfig, transport: httpx.BaseTransport) -> None:
+    def __init__(
+        self,
+        config: HmacConfig,
+        transport: httpx.BaseTransport,
+        client_id: str | None = None,
+    ) -> None:
         self._config = config
         self._transport = transport
+        self._client_id = client_id
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         """Sign the request and delegate to the inner transport."""
+        # Add X-Harden-Client-Id if configured
+        if self._client_id:
+            request.headers[CLIENT_ID_HEADER] = self._client_id
+
         path = request.url.raw_path.decode("ascii")
         method = request.method
         body = request.content.decode("utf-8") if request.content else ""
@@ -96,14 +108,25 @@ class HmacAsyncTransport:
     """httpx async transport that automatically signs outgoing requests with HMAC.
 
     Used internally by HmacClientFactory. Wraps an existing async transport.
+    Optionally adds an X-Harden-Client-Id header to identify the client to the server.
     """
 
-    def __init__(self, config: HmacConfig, transport: httpx.AsyncBaseTransport) -> None:
+    def __init__(
+        self,
+        config: HmacConfig,
+        transport: httpx.AsyncBaseTransport,
+        client_id: str | None = None,
+    ) -> None:
         self._config = config
         self._transport = transport
+        self._client_id = client_id
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         """Sign the request and delegate to the inner transport."""
+        # Add X-Harden-Client-Id if configured
+        if self._client_id:
+            request.headers[CLIENT_ID_HEADER] = self._client_id
+
         path = request.url.raw_path.decode("ascii")
         method = request.method
         body = request.content.decode("utf-8") if request.content else ""
@@ -152,6 +175,7 @@ class HmacClientFactory:
         transport = HmacAsyncTransport(
             effective_config,
             httpx_mod.AsyncHTTPTransport(),
+            client_id=target_name,
         )
 
         return httpx_mod.AsyncClient(
@@ -179,6 +203,7 @@ class HmacClientFactory:
         transport = HmacTransport(
             effective_config,
             httpx_mod.HTTPTransport(),
+            client_id=target_name,
         )
 
         return httpx_mod.Client(

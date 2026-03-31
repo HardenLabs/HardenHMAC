@@ -4,29 +4,40 @@ namespace HardenLabs.Hmac.AspNetCore;
 
 /// <summary>
 /// HttpClient DelegatingHandler that automatically signs outgoing requests with HMAC-SHA256.
+/// Optionally adds an <c>X-Harden-Client-Id</c> header to identify the client to the server.
 /// </summary>
 public sealed class HardenHmacDelegatingHandler : DelegatingHandler
 {
     private readonly HmacRequestSigner _signer;
     private readonly HmacConfig _config;
+    private readonly string? _clientId;
 
-    public HardenHmacDelegatingHandler(HmacConfig config)
+    public HardenHmacDelegatingHandler(HmacConfig config, string? clientId = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _signer = new HmacRequestSigner(config);
+        _clientId = clientId;
     }
 
-    public HardenHmacDelegatingHandler(HmacConfig config, HttpMessageHandler innerHandler)
+    public HardenHmacDelegatingHandler(HmacConfig config, HttpMessageHandler innerHandler, string? clientId = null)
         : base(innerHandler)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _signer = new HmacRequestSigner(config);
+        _clientId = clientId;
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
+        // Add X-Harden-Client-Id if configured
+        if (!string.IsNullOrEmpty(_clientId))
+        {
+            request.Headers.TryAddWithoutValidation(
+                HardenHmacConstants.ClientIdHeader, _clientId);
+        }
+
         var method = request.Method.Method;
         var path = request.RequestUri?.PathAndQuery ?? "/";
 

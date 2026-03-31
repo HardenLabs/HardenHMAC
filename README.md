@@ -219,8 +219,8 @@ const config = createHmacConfig("default-secret", {
 });
 
 const factory = createHmacClientFactory(config);
-const ordersFetch = factory.createFetch("order-service");
-const response = await ordersFetch("/api/orders"); // auto-signed, correct base URL
+const ordersClient = factory.createClient("order-service");
+const response = await ordersClient("/api/orders"); // auto-signed, correct base URL
 ```
 
 ## Environment Variable Configuration

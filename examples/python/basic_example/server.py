@@ -1,4 +1,4 @@
-"""FastAPI server with HardenHMAC validation — single-secret and multi-tenant modes."""
+"""FastAPI server with HardenHMAC validation — single-secret, multi-client, and multi-tenant modes."""
 
 import base64
 from typing import Optional
@@ -6,22 +6,30 @@ from typing import Optional
 from fastapi import FastAPI
 from starlette.requests import Request
 
-from hardenlabs_hmac.config import HmacConfig, SignedHeadersConfig
+from hardenlabs_hmac.config import HmacClientIdentity, HmacConfig, SignedHeadersConfig
 from hardenlabs_hmac.middleware.fastapi import HardenHmacMiddleware
 
-# Shared secret (in production, load from environment/secrets manager)
-shared_secret = base64.b64encode(b"my-shared-secret-key-32-bytes!!").decode()
+# Secrets (in production, load from environment/secrets manager)
+default_secret = base64.b64encode(b"my-shared-secret-key-32-bytes!!").decode()
+orders_secret = base64.b64encode(b"orders-secret-key-32-bytes!!!!!").decode()
+payments_secret = base64.b64encode(b"payments-secret-key-32-bytes!!").decode()
 
-config = HmacConfig(
-    shared_secret_base64=shared_secret,
+
+# ── Option A: Multi-client server with named clients ──
+# Each client identifies itself via X-Harden-Client-Id header.
+# The middleware looks up the secret from the Clients dictionary.
+multi_client_config = HmacConfig(
+    shared_secret_base64=default_secret,  # fallback when no client ID
     signed_headers=SignedHeadersConfig.default(),
     timestamp_tolerance_seconds=30,
+    clients={
+        "order-service": HmacClientIdentity(shared_secret=orders_secret),
+        "payment-service": HmacClientIdentity(shared_secret=payments_secret),
+    },
 )
 
-
-# ── Option A: Simple server with single secret ──
 simple_app = FastAPI()
-simple_app.add_middleware(HardenHmacMiddleware, config=config)
+simple_app.add_middleware(HardenHmacMiddleware, config=multi_client_config)
 
 
 @simple_app.get("/api/hello")

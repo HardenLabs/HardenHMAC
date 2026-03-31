@@ -1,4 +1,5 @@
 import {
+  CLIENT_ID_HEADER_LOWER,
   HARDEN_HEADER_PREFIX,
   X_HEADER_PREFIX,
   type SignedHeadersConfig,
@@ -99,8 +100,9 @@ function selectHeaders(
     const lowerName = name.toLowerCase();
     const trimmedValue = value.trim();
 
-    // Always exclude X-Harden-* headers
-    if (lowerName.startsWith(HARDEN_HEADER_PREFIX)) {
+    // Always exclude X-Harden-* headers, EXCEPT X-Harden-Client-Id
+    // (client identity is an identity claim, not signing metadata)
+    if (lowerName.startsWith(HARDEN_HEADER_PREFIX) && lowerName !== CLIENT_ID_HEADER_LOWER) {
       continue;
     }
 
@@ -113,7 +115,7 @@ function selectHeaders(
     if (
       config.includeXHeaders &&
       lowerName.startsWith(X_HEADER_PREFIX) &&
-      !lowerName.startsWith(HARDEN_HEADER_PREFIX)
+      (!lowerName.startsWith(HARDEN_HEADER_PREFIX) || lowerName === CLIENT_ID_HEADER_LOWER)
     ) {
       include = true;
     }

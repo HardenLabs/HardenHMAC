@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import type { HmacConfig } from "../config.js";
-import { SIGNATURE_HEADER, TIMESTAMP_HEADER } from "../config.js";
+import { CLIENT_ID_HEADER, SIGNATURE_HEADER, TIMESTAMP_HEADER } from "../config.js";
 import { HmacValidationError } from "../errors.js";
 import { validateRequest } from "../validation.js";
 
@@ -78,17 +78,8 @@ export function hardenHmacMiddleware(
     const rawTs = req.headers[TIMESTAMP_HEADER.toLowerCase()];
     const timestampHeader = Array.isArray(rawTs) ? rawTs[0] : rawTs;
 
-    // Resolve secret (sync or async)
-    const resolveAndValidate = (effectiveSecret: string | null | undefined): void => {
-      const secret = effectiveSecret || config.sharedSecretBase64;
-      if (!secret) {
-        res.status(401).json({
-          error: "no_secret",
-          message: "No shared secret configured for this request.",
-        });
-        return;
-      }
-
+    // Validate with the resolved secret
+    const validateWithSecret = (secret: string): void => {
       const effectiveConfig: HmacConfig = {
         ...config,
         sharedSecretBase64: secret,
@@ -121,6 +112,43 @@ export function hardenHmacMiddleware(
       }
 
       next();
+    };
+
+    // Resolution chain: resolver -> Clients dict -> config fallback
+    const resolveAndValidate = (resolverResult: string | null | undefined): void => {
+      // 1. secretResolver callback result
+      if (resolverResult) {
+        validateWithSecret(resolverResult);
+        return;
+      }
+
+      // 2. X-Harden-Client-Id header -> look up in config.clients
+      const clientId = requestHeaders[CLIENT_ID_HEADER.toLowerCase()];
+      if (clientId) {
+        const clientIdentity = config.clients?.[clientId];
+        if (clientIdentity?.sharedSecret) {
+          validateWithSecret(clientIdentity.sharedSecret);
+          return;
+        }
+        // Client ID was provided but not found
+        res.status(401).json({
+          error: "unknown_client",
+          message: `Client '${clientId}' is not configured.`,
+        });
+        return;
+      }
+
+      // 3. Fall back to config.sharedSecretBase64
+      if (config.sharedSecretBase64) {
+        validateWithSecret(config.sharedSecretBase64);
+        return;
+      }
+
+      // 4. No secret available
+      res.status(401).json({
+        error: "no_secret",
+        message: "No shared secret configured for this request.",
+      });
     };
 
     if (secretResolver) {

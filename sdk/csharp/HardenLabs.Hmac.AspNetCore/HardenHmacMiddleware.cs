@@ -66,8 +66,20 @@ public sealed class HardenHmacMiddleware
         var signatureHeader = request.Headers[HardenHmacConstants.SignatureHeader].FirstOrDefault();
         var timestampHeader = request.Headers[HardenHmacConstants.TimestampHeader].FirstOrDefault();
 
-        // Resolve the shared secret: try resolver first, then fall back to config
-        var effectiveSecret = await ResolveSecretAsync(context);
+        // Resolve the shared secret: try resolver, then Clients dict, then config fallback
+        var (effectiveSecret, resolveError) = await ResolveSecretAsync(context);
+
+        if (resolveError is not null)
+        {
+            _logger.LogWarning("HMAC validation failed: {ErrorType} for {Method} {Path}",
+                resolveError.Value.errorType, request.Method, path);
+
+            context.Response.StatusCode = 401;
+            context.Response.ContentType = "application/json";
+            var errorBody = JsonSerializer.Serialize(new { error = resolveError.Value.errorType, message = resolveError.Value.message });
+            await context.Response.WriteAsync(errorBody);
+            return;
+        }
 
         if (string.IsNullOrEmpty(effectiveSecret))
         {
@@ -120,20 +132,36 @@ public sealed class HardenHmacMiddleware
         await _next(context);
     }
 
-    private async Task<string?> ResolveSecretAsync(HttpContext context)
+    private async Task<(string? secret, (string errorType, string message)? error)> ResolveSecretAsync(HttpContext context)
     {
+        // 1. secretResolver callback (if provided) takes highest priority
         if (_secretResolver is not null)
         {
             var resolved = await _secretResolver(context);
             if (!string.IsNullOrEmpty(resolved))
             {
-                return resolved;
+                return (resolved, null);
             }
         }
 
-        // Fall back to config.SharedSecretBase64
-        return !string.IsNullOrEmpty(_config.SharedSecretBase64)
+        // 2. X-Harden-Client-Id header → look up in config.Clients
+        var clientId = context.Request.Headers[HardenHmacConstants.ClientIdHeader].FirstOrDefault();
+        if (!string.IsNullOrEmpty(clientId))
+        {
+            if (_config.Clients.TryGetValue(clientId, out var clientIdentity)
+                && !string.IsNullOrEmpty(clientIdentity.SharedSecret))
+            {
+                return (clientIdentity.SharedSecret, null);
+            }
+
+            // Client ID was provided but not found in Clients dictionary
+            return (null, ("unknown_client", $"Client '{clientId}' is not configured."));
+        }
+
+        // 3. Fall back to config.SharedSecretBase64
+        var fallback = !string.IsNullOrEmpty(_config.SharedSecretBase64)
             ? _config.SharedSecretBase64
             : null;
+        return (fallback, null);
     }
 }

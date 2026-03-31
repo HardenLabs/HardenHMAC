@@ -8,7 +8,9 @@ from dataclasses import dataclass, field
 SIGNATURE_HEADER = "X-Harden-Signature"
 TIMESTAMP_HEADER = "X-Harden-Timestamp"
 SIGNED_HEADERS_HEADER = "X-Harden-Signed-Headers"
+CLIENT_ID_HEADER = "X-Harden-Client-Id"
 HARDEN_HEADER_PREFIX = "x-harden-"
+CLIENT_ID_HEADER_LOWER = "x-harden-client-id"
 X_HEADER_PREFIX = "x-"
 DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 30
 
@@ -34,6 +36,17 @@ class SignedHeadersConfig:
             include_authorization=False,
             include_x_headers=False,
         )
+
+
+@dataclass(frozen=True)
+class HmacClientIdentity:
+    """Identity and credentials for a named client that connects to this server.
+
+    Used in multi-client server configurations where different clients
+    authenticate with different shared secrets.
+    """
+
+    shared_secret: str = ""
 
 
 @dataclass(frozen=True)
@@ -64,6 +77,7 @@ class HmacConfig:
 
     shared_secret_base64: str = ""
     targets: dict[str, HmacTargetConfig] = field(default_factory=dict)
+    clients: dict[str, HmacClientIdentity] = field(default_factory=dict)
     signed_headers: SignedHeadersConfig = field(
         default_factory=SignedHeadersConfig.default
     )

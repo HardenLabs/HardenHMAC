@@ -13,20 +13,36 @@ import {
   type SecretResolver,
 } from "@hardenlabs/hmac";
 
-// Shared secret (in production, load from environment/secrets manager)
-const sharedSecret = Buffer.from("my-shared-secret-key-32-bytes!!").toString(
+// Secrets (in production, load from environment/secrets manager)
+const defaultSecret = Buffer.from("my-shared-secret-key-32-bytes!!").toString(
+  "base64"
+);
+const ordersSecret = Buffer.from("orders-secret-key-32-bytes!!!!!").toString(
+  "base64"
+);
+const paymentsSecret = Buffer.from("payments-secret-key-32-bytes!!").toString(
   "base64"
 );
 
-const config = createHmacConfig(sharedSecret, {
+const config = createHmacConfig(defaultSecret, {
   signedHeaders: noneSignedHeadersConfig(),
   timestampToleranceSeconds: 30,
 });
 
-// ── Option A: Simple server with single secret ──
+// ── Option A: Multi-client server with named clients ──
+// Each client identifies itself via X-Harden-Client-Id header.
+// The middleware looks up the secret from the clients dictionary.
+const multiClientConfig = {
+  ...config,
+  clients: {
+    "order-service": { sharedSecret: ordersSecret },
+    "payment-service": { sharedSecret: paymentsSecret },
+  },
+};
+
 const simpleApp = express();
 simpleApp.use(express.text({ type: "*/*" }));
-simpleApp.use(hardenHmacMiddleware(config));
+simpleApp.use(hardenHmacMiddleware(multiClientConfig));
 
 simpleApp.get("/api/hello", (_req, res) => {
   res.json({ message: "Hello from HardenHMAC!" });

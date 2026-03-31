@@ -87,8 +87,10 @@ public static class CanonicalStringBuilder
             var lowerName = kvp.Key.ToLowerInvariant();
             var trimmedValue = kvp.Value.Trim();
 
-            // Always exclude X-Harden-* headers
-            if (lowerName.StartsWith(HardenHmacConstants.HardenHeaderPrefix.ToLowerInvariant()))
+            // Always exclude X-Harden-* headers, EXCEPT X-Harden-Client-Id
+            // (client identity is an identity claim, not signing metadata)
+            if (lowerName.StartsWith(HardenHmacConstants.HardenHeaderPrefix.ToLowerInvariant())
+                && !string.Equals(lowerName, HardenHmacConstants.ClientIdHeader.ToLowerInvariant(), StringComparison.Ordinal))
                 continue;
 
             // Check if this header should be included
@@ -102,7 +104,8 @@ public static class CanonicalStringBuilder
 
             if (config.IncludeXHeaders &&
                 lowerName.StartsWith(HardenHmacConstants.XHeaderPrefix.ToLowerInvariant()) &&
-                !lowerName.StartsWith(HardenHmacConstants.HardenHeaderPrefix.ToLowerInvariant()))
+                (!lowerName.StartsWith(HardenHmacConstants.HardenHeaderPrefix.ToLowerInvariant()) ||
+                 string.Equals(lowerName, HardenHmacConstants.ClientIdHeader.ToLowerInvariant(), StringComparison.Ordinal)))
             {
                 include = true;
             }

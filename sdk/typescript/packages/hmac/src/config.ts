@@ -10,6 +10,12 @@ export interface SignedHeadersConfig {
   excludeHeaders: string[];
 }
 
+/** Identity and credentials for a named client that connects to this server. */
+export interface HmacClientIdentity {
+  /** The shared secret as a Base64-encoded string for this client. */
+  sharedSecret: string;
+}
+
 /** Per-target configuration for a named service target (client-side). */
 export interface HmacTargetConfig {
   /** Base URL for the target service. */
@@ -28,6 +34,8 @@ export interface HmacConfig {
   sharedSecretBase64: string;
   /** Named service targets with their own base URLs and secrets. */
   targets?: Record<string, HmacTargetConfig>;
+  /** Named client identities for server-side multi-client secret resolution. */
+  clients?: Record<string, HmacClientIdentity>;
   /** Configuration for which headers to include in the signature. */
   signedHeaders: SignedHeadersConfig;
   /** Timestamp tolerance in seconds for server-side validation. Default: 30. */
@@ -38,7 +46,9 @@ export interface HmacConfig {
 export const SIGNATURE_HEADER = "X-Harden-Signature";
 export const TIMESTAMP_HEADER = "X-Harden-Timestamp";
 export const SIGNED_HEADERS_HEADER = "X-Harden-Signed-Headers";
+export const CLIENT_ID_HEADER = "X-Harden-Client-Id";
 export const HARDEN_HEADER_PREFIX = "x-harden-";
+export const CLIENT_ID_HEADER_LOWER = "x-harden-client-id";
 export const X_HEADER_PREFIX = "x-";
 export const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 30;
 

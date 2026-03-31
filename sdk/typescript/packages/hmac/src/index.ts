@@ -6,12 +6,14 @@ export {
 } from "./canonical.js";
 
 export {
+  type HmacClientIdentity,
   type HmacConfig,
   type HmacTargetConfig,
   type SignedHeadersConfig,
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   SIGNED_HEADERS_HEADER,
+  CLIENT_ID_HEADER,
   DEFAULT_TIMESTAMP_TOLERANCE_SECONDS,
   defaultSignedHeadersConfig,
   noneSignedHeadersConfig,

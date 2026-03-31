@@ -34,7 +34,7 @@ describe("createHmacClientFactory", () => {
   it("throws for unknown target", () => {
     const config = makeConfig();
     const factory = createHmacClientFactory(config);
-    expect(() => factory.createFetch("nonexistent")).toThrow(
+    expect(() => factory.createClient("nonexistent")).toThrow(
       /nonexistent.*not configured/
     );
   });
@@ -55,7 +55,7 @@ describe("createHmacClientFactory", () => {
     );
 
     const factory = createHmacClientFactory(config, mockFetch as typeof globalThis.fetch);
-    const ordersFetch = factory.createFetch("order-service");
+    const ordersFetch = factory.createClient("order-service");
 
     await ordersFetch("/api/orders");
 
@@ -74,7 +74,7 @@ describe("createHmacClientFactory", () => {
     });
 
     const factory = createHmacClientFactory(config, mockFetch as typeof globalThis.fetch);
-    const paymentsFetch = factory.createFetch("payment-service");
+    const paymentsFetch = factory.createClient("payment-service");
 
     await paymentsFetch("/api/pay");
 
@@ -93,8 +93,8 @@ describe("createHmacClientFactory", () => {
     });
 
     const factory = createHmacClientFactory(config, mockFetch as typeof globalThis.fetch);
-    const ordersFetch = factory.createFetch("order-service");
-    const paymentsFetch = factory.createFetch("payment-service");
+    const ordersFetch = factory.createClient("order-service");
+    const paymentsFetch = factory.createClient("payment-service");
 
     await ordersFetch("/api/test");
     await paymentsFetch("/api/test");

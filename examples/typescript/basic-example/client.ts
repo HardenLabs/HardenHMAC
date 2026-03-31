@@ -1,83 +1,48 @@
 /**
- * Client that signs requests with HardenHMAC — single-secret and multi-target modes.
+ * Client that signs requests with HardenHMAC using the multi-target factory.
  *
  * Run: npx tsx client.ts
  */
 
-import {
-  createHmacConfig,
-  createHmacClientFactory,
-  noneSignedHeadersConfig,
-  signRequestHeaders,
-  fromEnv,
-} from "@hardenlabs/hmac";
+import { createHmacClientFactory } from "@hardenlabs/hmac";
+import type { HmacConfig } from "@hardenlabs/hmac";
 
-// ── Option A: Single-secret mode (backwards-compatible) ──
-const sharedSecret = Buffer.from("my-shared-secret-key-32-bytes!!").toString(
-  "base64"
-);
-
-const singleConfig = createHmacConfig(sharedSecret, {
-  signedHeaders: noneSignedHeadersConfig(),
-});
-
-const BASE_URL = "http://localhost:3000";
-
-async function demoSingleSecret(): Promise<void> {
-  console.log("=== Single-secret mode ===");
-  const headers = signRequestHeaders(singleConfig, "GET", "/api/hello");
-  const resp = await fetch(`${BASE_URL}/api/hello`, { headers });
-  console.log(`GET /api/hello: ${resp.status} ${JSON.stringify(await resp.json())}`);
-}
-
-// ── Option B: Multi-target mode (factory) ──
+// Same secrets as the server — in production, load from environment/secrets manager
 const ordersSecret = Buffer.from("orders-secret-key-32-bytes!!!!!").toString("base64");
 const paymentsSecret = Buffer.from("payments-secret-key-32-bytes!!!").toString("base64");
 
-const multiConfig = createHmacConfig(sharedSecret, {
-  signedHeaders: noneSignedHeadersConfig(),
+const config: HmacConfig = {
   targets: {
     "order-service": {
-      baseUrl: "http://localhost:3001",
+      baseUrl: "http://localhost:3000",
       sharedSecret: ordersSecret,
     },
     "payment-service": {
-      baseUrl: "http://localhost:3002",
+      baseUrl: "http://localhost:3000",
       sharedSecret: paymentsSecret,
       timestampToleranceSeconds: 60,
     },
   },
-});
+};
 
-async function demoMultiTarget(): Promise<void> {
-  console.log("\n=== Multi-target mode (factory) ===");
-  const factory = createHmacClientFactory(multiConfig);
+const factory = createHmacClientFactory(config);
 
-  // Each fetch wrapper has the correct base URL and auto-signs with the target's secret
+async function main(): Promise<void> {
+  // Each fetch wrapper has base URL and signing pre-configured from the target
   const ordersFetch = factory.createFetch("order-service");
   const paymentsFetch = factory.createFetch("payment-service");
 
-  // These calls go to http://localhost:3001/api/orders and http://localhost:3002/api/charge
-  console.log("  ordersFetch and paymentsFetch created with auto-signing");
-  console.log("  ordersFetch('/api/orders') => GET http://localhost:3001/api/orders");
-  console.log("  paymentsFetch('/api/charge', {method:'POST',...}) => POST http://localhost:3002/api/charge");
-}
+  // GET — base URL is prepended automatically
+  const getResp = await ordersFetch("/api/hello");
+  console.log(`GET order-service /api/hello: ${getResp.status} ${JSON.stringify(await getResp.json())}`);
 
-function demoEnvLoading(): void {
-  console.log("\n=== Environment variable loading ===");
-  // In production, set env vars:
-  //   HARDEN_HMAC_TARGETS__ORDER_SERVICE__BASE_URL=https://orders.example.com
-  //   HARDEN_HMAC_TARGETS__ORDER_SERVICE__SHARED_SECRET=base64-key
-  // Then:
-  //   const config = fromEnv();
-  //   const factory = createHmacClientFactory(config);
-  console.log("  Set HARDEN_HMAC_* env vars, then call fromEnv()");
-}
-
-async function main(): Promise<void> {
-  await demoSingleSecret();
-  await demoMultiTarget();
-  demoEnvLoading();
+  // POST with body
+  const postResp = await paymentsFetch("/api/echo", {
+    method: "POST",
+    body: JSON.stringify({ amount: 100 }),
+    headers: { "Content-Type": "application/json" },
+  });
+  console.log(`POST payment-service /api/echo: ${postResp.status} ${JSON.stringify(await postResp.json())}`);
 }
 
 main().catch(console.error);

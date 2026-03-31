@@ -1,14 +1,16 @@
 /**
- * Basic Express server with HardenHMAC validation.
+ * Express server with HardenHMAC validation — single-secret and multi-tenant modes.
  *
  * Run: npx tsx server.ts
  */
 
 import express from "express";
+import type { Request } from "express";
 import {
   createHmacConfig,
   hardenHmacMiddleware,
   noneSignedHeadersConfig,
+  type SecretResolver,
 } from "@hardenlabs/hmac";
 
 // Shared secret (in production, load from environment/secrets manager)
@@ -21,18 +23,47 @@ const config = createHmacConfig(sharedSecret, {
   timestampToleranceSeconds: 30,
 });
 
-const app = express();
-app.use(express.text({ type: "*/*" }));
-app.use(hardenHmacMiddleware(config));
+// ── Option A: Simple server with single secret ──
+const simpleApp = express();
+simpleApp.use(express.text({ type: "*/*" }));
+simpleApp.use(hardenHmacMiddleware(config));
 
-app.get("/api/hello", (_req, res) => {
+simpleApp.get("/api/hello", (_req, res) => {
   res.json({ message: "Hello from HardenHMAC!" });
 });
 
-app.post("/api/echo", (req, res) => {
+simpleApp.post("/api/echo", (req, res) => {
   res.json({ echo: req.body });
 });
 
-app.listen(3000, () => {
-  console.log("Server listening on http://localhost:3000");
+// ── Option B: Multi-tenant server with secret resolver ──
+const TENANT_SECRETS: Record<string, string> = {
+  "tenant-a": Buffer.from("tenant-a-secret-key-32-bytes!!").toString("base64"),
+  "tenant-b": Buffer.from("tenant-b-secret-key-32-bytes!!").toString("base64"),
+};
+
+const secretResolver: SecretResolver = (req: Request) => {
+  const clientId = req.headers["x-client-id"] as string | undefined;
+  if (clientId && TENANT_SECRETS[clientId]) {
+    return TENANT_SECRETS[clientId]!;
+  }
+  return null; // fall back to config.sharedSecretBase64
+};
+
+const multiTenantApp = express();
+multiTenantApp.use(express.text({ type: "*/*" }));
+multiTenantApp.use(hardenHmacMiddleware(config, secretResolver));
+
+multiTenantApp.get("/api/hello", (_req, res) => {
+  res.json({ message: "Hello from multi-tenant HardenHMAC!" });
 });
+
+// Start simple server by default
+simpleApp.listen(3000, () => {
+  console.log("Simple server listening on http://localhost:3000");
+});
+
+// Uncomment for multi-tenant:
+// multiTenantApp.listen(3001, () => {
+//   console.log("Multi-tenant server listening on http://localhost:3001");
+// });

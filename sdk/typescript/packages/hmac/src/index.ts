@@ -7,6 +7,7 @@ export {
 
 export {
   type HmacConfig,
+  type HmacTargetConfig,
   type SignedHeadersConfig,
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
@@ -15,6 +16,10 @@ export {
   defaultSignedHeadersConfig,
   noneSignedHeadersConfig,
   createHmacConfig,
+  getEffectiveSecret,
+  getEffectiveSignedHeaders,
+  getEffectiveTimestampTolerance,
+  configForTarget,
 } from "./config.js";
 
 export { HmacValidationError, type HmacErrorType } from "./errors.js";
@@ -25,4 +30,11 @@ export { validateRequest, type ValidateRequestParams } from "./validation.js";
 
 export { signRequestHeaders, createSignedFetch } from "./middleware/fetch.js";
 
-export { hardenHmacMiddleware } from "./middleware/express.js";
+export { hardenHmacMiddleware, type SecretResolver } from "./middleware/express.js";
+
+export { fromEnv } from "./env-loader.js";
+
+export {
+  createHmacClientFactory,
+  type HmacClientFactory,
+} from "./client-factory.js";

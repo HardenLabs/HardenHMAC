@@ -5,6 +5,14 @@ import { HmacValidationError } from "../errors.js";
 import { validateRequest } from "../validation.js";
 
 /**
+ * Optional callback to resolve the shared secret per-request.
+ * Return the Base64-encoded secret, or null/undefined to fall back to config.sharedSecretBase64.
+ */
+export type SecretResolver = (
+  req: Request
+) => string | null | undefined | Promise<string | null | undefined>;
+
+/**
  * Create an Express middleware that validates incoming HMAC-signed requests.
  *
  * IMPORTANT: This middleware requires the raw request body as a string or Buffer.
@@ -16,10 +24,12 @@ import { validateRequest } from "../validation.js";
  * with a descriptive error rather than silently producing incorrect results.
  *
  * @param config - HMAC configuration with shared secret and tolerance.
+ * @param secretResolver - Optional callback to resolve the secret per-request (e.g., for multi-tenant).
  * @returns Express middleware function.
  */
 export function hardenHmacMiddleware(
-  config: HmacConfig
+  config: HmacConfig,
+  secretResolver?: SecretResolver
 ): (req: Request, res: Response, next: NextFunction) => void {
   return (req: Request, res: Response, next: NextFunction): void => {
     // Collect body as string.
@@ -70,32 +80,62 @@ export function hardenHmacMiddleware(
       | string
       | undefined;
 
-    try {
-      validateRequest(config, {
-        method: req.method,
-        path,
-        body,
-        signatureHeader,
-        timestampHeader,
-        requestHeaders,
-      });
-    } catch (error) {
-      if (error instanceof HmacValidationError) {
-        const statusCode =
-          error.errorType === "missing_signature" ||
-          error.errorType === "missing_timestamp" ||
-          error.errorType === "invalid_timestamp"
-            ? 400
-            : 401;
-        res.status(statusCode).json({
-          error: error.errorType,
-          message: error.message,
+    // Resolve secret (sync or async)
+    const resolveAndValidate = (effectiveSecret: string | null | undefined): void => {
+      const secret = effectiveSecret || config.sharedSecretBase64;
+      if (!secret) {
+        res.status(401).json({
+          error: "no_secret",
+          message: "No shared secret configured for this request.",
         });
         return;
       }
-      throw error;
-    }
 
-    next();
+      const effectiveConfig: HmacConfig = {
+        ...config,
+        sharedSecretBase64: secret,
+      };
+
+      try {
+        validateRequest(effectiveConfig, {
+          method: req.method,
+          path,
+          body,
+          signatureHeader,
+          timestampHeader,
+          requestHeaders,
+        });
+      } catch (error) {
+        if (error instanceof HmacValidationError) {
+          const statusCode =
+            error.errorType === "missing_signature" ||
+            error.errorType === "missing_timestamp" ||
+            error.errorType === "invalid_timestamp"
+              ? 400
+              : 401;
+          res.status(statusCode).json({
+            error: error.errorType,
+            message: error.message,
+          });
+          return;
+        }
+        throw error;
+      }
+
+      next();
+    };
+
+    if (secretResolver) {
+      const result = secretResolver(req);
+      if (result instanceof Promise) {
+        result.then(resolveAndValidate).catch((err: unknown) => {
+          next(err);
+        });
+        return;
+      }
+      resolveAndValidate(result);
+    } else {
+      resolveAndValidate(null);
+    }
   };
 }

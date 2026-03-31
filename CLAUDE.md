@@ -87,6 +87,31 @@ HMAC-SHA256(shared_secret_bytes, canonical_string_utf8) -> lowercase hex (64 cha
 - `X-Harden-Timestamp` — Unix timestamp in seconds
 - `X-Harden-Signed-Headers` — semicolon-separated sorted list of signed header names (only present if headers are signed)
 
+## Configuration Patterns
+
+### Multi-Target Configuration
+- `HmacConfig.Targets` (C#) / `HmacConfig.targets` (Python/TS) holds named service targets
+- Each target has `BaseUrl`, `SharedSecret`, and optional overrides for `SignedHeaders` and `TimestampToleranceSeconds`
+- Per-target settings override global defaults: `target.field ?? config.field`
+- `config.ForTarget(name)` / `config.for_target(name)` / `configForTarget(config, name)` resolves a fully-merged config
+
+### Environment Variable Loading
+- All SDKs support `HARDEN_HMAC_` prefix with `__` separator for nesting
+- C#: native `IConfiguration` binding via `AddHardenHmac(IConfiguration)`
+- Python: `HmacConfig.from_env()` with optional python-dotenv
+- TypeScript: `fromEnv()` with optional dotenv peer dependency
+- Target names in env vars use `UPPER_SNAKE_CASE` which maps to `lower-kebab-case`
+
+### Client Factory Pattern
+- C#: `IHardenHmacClientFactory` (registered by `AddHardenHmac`)
+- Python: `HmacClientFactory(config)` with `create_client()` / `create_sync_client()`
+- TypeScript: `createHmacClientFactory(config)` with `createFetch(targetName)`
+
+### Secret Resolver (Server-Side)
+- Middleware accepts optional `secretResolver` callback for multi-tenant scenarios
+- Resolver is called first; if it returns null, falls back to `config.SharedSecretBase64`
+- If neither has a secret, middleware returns 401 `no_secret`
+
 ## Critical Rules
 
 1. **Cross-language test vectors are authoritative.** If an implementation disagrees with the vectors, the implementation is wrong. Fix the implementation, never the vectors.
@@ -95,3 +120,4 @@ HMAC-SHA256(shared_secret_bytes, canonical_string_utf8) -> lowercase hex (64 cha
 4. **No emojis** in log messages or comments.
 5. **Do not modify** files in `docs/analysis/` — those are existing strategy documents.
 6. Existing implementations must pass ALL test vectors before any PR is merged.
+7. **Backwards compatibility required.** Single-secret mode (no targets) must continue to work exactly as before.

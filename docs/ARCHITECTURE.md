@@ -123,6 +123,92 @@ The library supports flexible configuration for which request headers are includ
 5. Format each as `lowercasename:trimmedvalue`
 6. Join with `\n`
 
+## Configuration Loading
+
+HardenHMAC supports three configuration sources across all languages:
+
+### Programmatic Configuration
+Direct code construction (as shown in Quick Start examples). This is the simplest approach.
+
+### Environment Variables
+All SDKs support the `HARDEN_HMAC_` prefix convention. The `__` separator maps to nested configuration:
+
+```
+HARDEN_HMAC_SHARED_SECRET_BASE64=base64-key
+HARDEN_HMAC_TIMESTAMP_TOLERANCE_SECONDS=30
+HARDEN_HMAC_TARGETS__ORDER_SERVICE__BASE_URL=https://orders.example.com
+HARDEN_HMAC_TARGETS__ORDER_SERVICE__SHARED_SECRET=base64-key
+```
+
+- **C#**: `IConfiguration` handles `__` natively. Use `AddHardenHmac(configuration.GetSection("HardenHmac"))`.
+- **Python**: `HmacConfig.from_env()`. Optionally loads `.env` via python-dotenv.
+- **TypeScript**: `fromEnv()`. Optionally loads `.env` via dotenv (peer dependency).
+
+### Config File (C# only)
+`appsettings.json` binding via `IConfiguration`:
+```json
+{
+  "HardenHmac": {
+    "SharedSecretBase64": "base64-key",
+    "Targets": {
+      "order-service": { "BaseUrl": "...", "SharedSecret": "..." }
+    }
+  }
+}
+```
+
+## Multi-Target Design
+
+The multi-target pattern allows a single client process to sign requests for multiple backend services, each with a different shared secret and optional configuration overrides.
+
+```mermaid
+graph LR
+    A[Client App] --> B[HmacClientFactory]
+    B --> C[order-service<br/>secret: key-A<br/>base: orders.example.com]
+    B --> D[payment-service<br/>secret: key-B<br/>base: payments.example.com]
+    B --> E[notification-service<br/>secret: key-C<br/>base: notify.example.com]
+```
+
+### Configuration Hierarchy
+Per-target settings override global defaults:
+
+| Setting | Global | Per-Target | Resolution |
+|---------|--------|------------|------------|
+| SharedSecret | `config.SharedSecretBase64` | `target.SharedSecret` | Target if set, else global |
+| SignedHeaders | `config.SignedHeaders` | `target.SignedHeaders` | Target if set, else global |
+| TimestampTolerance | `config.TimestampToleranceSeconds` | `target.TimestampToleranceSeconds` | Target if set, else global |
+
+### Client Factory Pattern
+Each language provides a factory that creates pre-configured HTTP clients:
+- **C#**: `IHardenHmacClientFactory.CreateClient(targetName)` returns `HttpClient` with `BaseAddress` and signing handler
+- **Python**: `HmacClientFactory.create_client(targetName)` returns `httpx.AsyncClient` (or `create_sync_client` for sync)
+- **TypeScript**: `createHmacClientFactory(config).createFetch(targetName)` returns a signed fetch wrapper
+
+## Secret Resolver (Server-Side Multi-Tenant)
+
+For servers that validate requests from multiple clients with different secrets, middleware accepts an optional `secretResolver` callback:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Middleware
+    participant SecretResolver
+    participant Config
+
+    Client->>Middleware: HTTP request
+    Middleware->>SecretResolver: resolve(request)
+    SecretResolver-->>Middleware: secret or null
+    alt Resolver returned a secret
+        Middleware->>Middleware: validate with resolved secret
+    else Resolver returned null
+        Middleware->>Config: use config.SharedSecretBase64
+        Config-->>Middleware: default secret
+        Middleware->>Middleware: validate with default secret
+    end
+```
+
+If both the resolver and config have no secret, the middleware returns 401 with `no_secret` error.
+
 ## Timestamp Validation
 
 - Default tolerance: 30 seconds

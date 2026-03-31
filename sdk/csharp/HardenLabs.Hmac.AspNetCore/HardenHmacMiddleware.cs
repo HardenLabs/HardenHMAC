@@ -7,23 +7,34 @@ namespace HardenLabs.Hmac.AspNetCore;
 
 /// <summary>
 /// ASP.NET Core middleware that validates incoming HMAC-signed requests.
+/// Supports a static shared secret from config and/or a dynamic secret resolver callback
+/// for multi-tenant scenarios.
 /// </summary>
 public sealed class HardenHmacMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly HmacValidator _validator;
     private readonly HmacConfig _config;
     private readonly ILogger<HardenHmacMiddleware> _logger;
+    private readonly Func<HttpContext, Task<string?>>? _secretResolver;
 
     public HardenHmacMiddleware(
         RequestDelegate next,
         HmacConfig config,
         ILogger<HardenHmacMiddleware> logger)
+        : this(next, config, logger, secretResolver: null)
+    {
+    }
+
+    public HardenHmacMiddleware(
+        RequestDelegate next,
+        HmacConfig config,
+        ILogger<HardenHmacMiddleware> logger,
+        Func<HttpContext, Task<string?>>? secretResolver)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _validator = new HmacValidator(config);
+        _secretResolver = secretResolver;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -55,7 +66,30 @@ public sealed class HardenHmacMiddleware
         var signatureHeader = request.Headers[HardenHmacConstants.SignatureHeader].FirstOrDefault();
         var timestampHeader = request.Headers[HardenHmacConstants.TimestampHeader].FirstOrDefault();
 
-        var result = _validator.Validate(
+        // Resolve the shared secret: try resolver first, then fall back to config
+        var effectiveSecret = await ResolveSecretAsync(context);
+
+        if (string.IsNullOrEmpty(effectiveSecret))
+        {
+            _logger.LogWarning("HMAC validation failed: no shared secret configured or resolved for {Method} {Path}",
+                request.Method, path);
+
+            context.Response.StatusCode = 401;
+            context.Response.ContentType = "application/json";
+            var noSecretBody = JsonSerializer.Serialize(new { error = "no_secret", message = "No shared secret configured for this request." });
+            await context.Response.WriteAsync(noSecretBody);
+            return;
+        }
+
+        var validationConfig = new HmacConfig
+        {
+            SharedSecretBase64 = effectiveSecret,
+            SignedHeaders = _config.SignedHeaders,
+            TimestampToleranceSeconds = _config.TimestampToleranceSeconds,
+        };
+
+        var validator = new HmacValidator(validationConfig);
+        var result = validator.Validate(
             request.Method,
             path,
             body,
@@ -84,5 +118,22 @@ public sealed class HardenHmacMiddleware
 
         _logger.LogDebug("HMAC validation succeeded for {Method} {Path}", request.Method, path);
         await _next(context);
+    }
+
+    private async Task<string?> ResolveSecretAsync(HttpContext context)
+    {
+        if (_secretResolver is not null)
+        {
+            var resolved = await _secretResolver(context);
+            if (!string.IsNullOrEmpty(resolved))
+            {
+                return resolved;
+            }
+        }
+
+        // Fall back to config.SharedSecretBase64
+        return !string.IsNullOrEmpty(_config.SharedSecretBase64)
+            ? _config.SharedSecretBase64
+            : null;
     }
 }

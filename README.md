@@ -137,6 +137,141 @@ const headers = signRequestHeaders(config, "GET", "/api/hello");
 const response = await fetch("https://api.example.com/api/hello", { headers });
 ```
 
+## Multi-Target Configuration
+
+For services that call multiple backends, configure named targets with per-target base URLs and secrets.
+
+### C# — Multi-Target Client
+
+```csharp
+var config = new HmacConfig
+{
+    SharedSecretBase64 = "default-secret",  // server-side fallback
+    Targets = new Dictionary<string, HmacTargetConfig>
+    {
+        ["order-service"] = new HmacTargetConfig
+        {
+            BaseUrl = "https://orders.example.com",
+            SharedSecret = "orders-base64-secret",
+        },
+        ["payment-service"] = new HmacTargetConfig
+        {
+            BaseUrl = "https://payments.example.com",
+            SharedSecret = "payments-base64-secret",
+            TimestampToleranceSeconds = 60,  // per-target override
+        },
+    },
+};
+
+builder.Services.AddHardenHmac(config);
+
+// Inject IHardenHmacClientFactory to create per-target clients
+var client = factory.CreateClient("order-service");
+var response = await client.GetAsync("/api/orders"); // auto-signed, correct base URL
+```
+
+### Python — Multi-Target Client
+
+```python
+from hardenlabs_hmac.client import HmacClientFactory
+from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig
+
+config = HmacConfig(
+    targets={
+        "order-service": HmacTargetConfig(
+            base_url="https://orders.example.com",
+            shared_secret="orders-base64-secret",
+        ),
+        "payment-service": HmacTargetConfig(
+            base_url="https://payments.example.com",
+            shared_secret="payments-base64-secret",
+        ),
+    },
+)
+
+factory = HmacClientFactory(config)
+async with factory.create_client("order-service") as client:
+    response = await client.get("/api/orders")  # auto-signed
+```
+
+### TypeScript — Multi-Target Client
+
+```typescript
+import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
+
+const config = createHmacConfig("default-secret", {
+  targets: {
+    "order-service": {
+      baseUrl: "https://orders.example.com",
+      sharedSecret: "orders-base64-secret",
+    },
+    "payment-service": {
+      baseUrl: "https://payments.example.com",
+      sharedSecret: "payments-base64-secret",
+    },
+  },
+});
+
+const factory = createHmacClientFactory(config);
+const ordersFetch = factory.createFetch("order-service");
+const response = await ordersFetch("/api/orders"); // auto-signed, correct base URL
+```
+
+## Environment Variable Configuration
+
+All SDKs support loading configuration from environment variables with the `HARDEN_HMAC_` prefix.
+
+**Single secret:**
+```bash
+HARDEN_HMAC_SHARED_SECRET_BASE64=your-base64-secret
+HARDEN_HMAC_TIMESTAMP_TOLERANCE_SECONDS=30
+```
+
+**Multi-target:**
+```bash
+HARDEN_HMAC_TARGETS__ORDER_SERVICE__BASE_URL=https://orders.example.com
+HARDEN_HMAC_TARGETS__ORDER_SERVICE__SHARED_SECRET=orders-base64-secret
+HARDEN_HMAC_TARGETS__PAYMENT_SERVICE__BASE_URL=https://payments.example.com
+HARDEN_HMAC_TARGETS__PAYMENT_SERVICE__SHARED_SECRET=payments-base64-secret
+```
+
+**C#**: Native `IConfiguration` handles `__` separators automatically via `AddHardenHmac(configuration)`.
+
+**Python**: `config = HmacConfig.from_env()` — optionally loads `.env` via python-dotenv if installed.
+
+**TypeScript**: `config = fromEnv()` — optionally loads `.env` via dotenv if installed as peer dependency.
+
+## Multi-Tenant Server (Secret Resolver)
+
+For servers that validate requests from multiple clients with different secrets:
+
+```csharp
+// C# — resolve secret per-request
+services.AddHardenHmac(config, secretResolver: async (httpContext) => {
+    var clientId = httpContext.Request.Headers["X-Client-Id"].FirstOrDefault();
+    return await LookupSecret(clientId);
+});
+```
+
+```python
+# Python — resolve secret per-request
+async def resolve_secret(request):
+    client_id = request.headers.get("x-client-id")
+    return await lookup_secret(client_id)
+
+app.add_middleware(HardenHmacMiddleware, config=config, secret_resolver=resolve_secret)
+```
+
+```typescript
+// TypeScript — resolve secret per-request
+app.use(hardenHmacMiddleware(config, (req) => {
+  const clientId = req.headers["x-client-id"] as string;
+  return lookupSecret(clientId);
+}));
+```
+
+If the resolver returns `null`, the middleware falls back to `config.SharedSecretBase64`.
+
 ## What HardenHMAC Does NOT Do
 
 HardenHMAC is a focused signing library. It deliberately does not include:
@@ -200,20 +335,35 @@ Headers are sorted alphabetically by lowercase name, values are trimmed, and the
 // Server-side validation
 app.UseHardenHmac();
 
-// Client-side signing via HttpClient
+// Client-side signing via named HttpClient
 builder.Services.AddHardenHmacClient("service-name", config);
+
+// Or via multi-target factory
+builder.Services.AddHardenHmac(config);
+var client = factory.CreateClient("order-service"); // from IHardenHmacClientFactory
+
+// From IConfiguration (appsettings.json / env vars)
+builder.Services.AddHardenHmac(configuration.GetSection("HardenHmac"));
 ```
 
 ### FastAPI / Starlette
 
 ```python
+# Simple
 app.add_middleware(HardenHmacMiddleware, config=config)
+
+# Multi-tenant
+app.add_middleware(HardenHmacMiddleware, config=config, secret_resolver=my_resolver)
 ```
 
 ### Express
 
 ```typescript
+// Simple
 app.use(hardenHmacMiddleware(config));
+
+// Multi-tenant
+app.use(hardenHmacMiddleware(config, secretResolver));
 ```
 
 ## Cross-Language Compatibility Guarantee

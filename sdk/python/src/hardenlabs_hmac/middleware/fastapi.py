@@ -1,8 +1,9 @@
 """FastAPI/Starlette middleware for HardenHMAC request validation."""
 
-import json
+from __future__ import annotations
+
 import logging
-from typing import Callable
+from typing import Awaitable, Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -15,13 +16,33 @@ from hardenlabs_hmac.validation import validate_request
 
 logger = logging.getLogger("hardenlabs_hmac.middleware")
 
+# Type alias for the optional secret resolver callback.
+# Given a Starlette Request, returns the Base64-encoded shared secret or None.
+SecretResolver = Callable[[Request], Awaitable[str | None]]
+
 
 class HardenHmacMiddleware(BaseHTTPMiddleware):
-    """FastAPI/Starlette middleware that validates incoming HMAC-signed requests."""
+    """FastAPI/Starlette middleware that validates incoming HMAC-signed requests.
 
-    def __init__(self, app: ASGIApp, config: HmacConfig) -> None:
+    Supports a static shared secret from config and/or a dynamic secret resolver
+    callback for multi-tenant scenarios.
+
+    Args:
+        app: The ASGI application.
+        config: HMAC configuration with shared secret and tolerance.
+        secret_resolver: Optional async callback that resolves the shared secret
+            per-request. If it returns None, falls back to config.shared_secret_base64.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        config: HmacConfig,
+        secret_resolver: SecretResolver | None = None,
+    ) -> None:
         super().__init__(app)
         self.config = config
+        self.secret_resolver = secret_resolver
 
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Response]
@@ -41,9 +62,33 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
         signature_header = request.headers.get(SIGNATURE_HEADER.lower())
         timestamp_header = request.headers.get(TIMESTAMP_HEADER.lower())
 
+        # Resolve secret: try resolver first, then fall back to config
+        effective_secret = await self._resolve_secret(request)
+
+        if not effective_secret:
+            logger.warning(
+                "HMAC validation failed: no shared secret configured or resolved for %s %s",
+                request.method,
+                path,
+            )
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "error": "no_secret",
+                    "message": "No shared secret configured for this request.",
+                },
+            )
+
+        # Build a config with the resolved secret
+        validation_config = HmacConfig(
+            shared_secret_base64=effective_secret,
+            signed_headers=self.config.signed_headers,
+            timestamp_tolerance_seconds=self.config.timestamp_tolerance_seconds,
+        )
+
         try:
             validate_request(
-                config=self.config,
+                config=validation_config,
                 method=request.method,
                 path=path,
                 body=body,
@@ -67,3 +112,12 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
             "HMAC validation succeeded for %s %s", request.method, path
         )
         return await call_next(request)
+
+    async def _resolve_secret(self, request: Request) -> str | None:
+        """Resolve the effective shared secret for this request."""
+        if self.secret_resolver is not None:
+            resolved = await self.secret_resolver(request)
+            if resolved:
+                return resolved
+
+        return self.config.shared_secret_base64 or None

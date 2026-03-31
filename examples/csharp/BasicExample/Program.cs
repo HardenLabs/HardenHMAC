@@ -1,52 +1,32 @@
+using System.Text;
 using HardenLabs.Hmac;
 using HardenLabs.Hmac.AspNetCore;
 
-// ── Option A: Single-secret mode (backwards-compatible) ──
+// ── Shared configuration ──
 var sharedSecret = Convert.ToBase64String("my-shared-secret-key-32-bytes!!"u8.ToArray());
+var ordersSecret = Convert.ToBase64String("orders-secret-key-32-bytes!!!!!"u8.ToArray());
 
-var singleConfig = new HmacConfig
+var config = new HmacConfig
 {
     SharedSecretBase64 = sharedSecret,
-    SignedHeaders = SignedHeadersConfig.Default,
-    TimestampToleranceSeconds = 30
-};
-
-// ── Option B: Multi-target mode ──
-var ordersSecret = Convert.ToBase64String("orders-secret-key-32-bytes!!!!!"u8.ToArray());
-var paymentsSecret = Convert.ToBase64String("payments-secret-key-32-bytes!!!"u8.ToArray());
-
-var multiConfig = new HmacConfig
-{
-    SharedSecretBase64 = sharedSecret, // server-side default
     TimestampToleranceSeconds = 30,
+    SignedHeaders = SignedHeadersConfig.Default,
     Targets = new Dictionary<string, HmacTargetConfig>
     {
         ["order-service"] = new HmacTargetConfig
         {
-            BaseUrl = "http://localhost:5001",
+            BaseUrl = "http://localhost:5099",
             SharedSecret = ordersSecret,
-        },
-        ["payment-service"] = new HmacTargetConfig
-        {
-            BaseUrl = "http://localhost:5002",
-            SharedSecret = paymentsSecret,
-            TimestampToleranceSeconds = 60,
         },
     },
 };
 
+// ── Server ──
 var builder = WebApplication.CreateBuilder(args);
-
-// Register multi-target config (also works with single-secret singleConfig)
-builder.Services.AddHardenHmac(multiConfig);
-
-// Also register a legacy named HttpClient (still works)
-builder.Services.AddHardenHmacClient("legacy-client", singleConfig)
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri("http://localhost:5000"));
+builder.Services.AddHardenHmac(config);
+builder.WebHost.UseUrls("http://localhost:5099");
 
 var app = builder.Build();
-
-// Server: validate incoming requests
 app.UseHardenHmac();
 
 app.MapGet("/api/hello", () => Results.Ok(new { message = "Hello from HardenHMAC!" }));
@@ -58,26 +38,52 @@ app.MapPost("/api/echo", async (HttpRequest request) =>
     return Results.Ok(new { echo = body });
 });
 
-// Client demo: use the factory to create per-target clients
-app.MapGet("/api/demo-factory", (IHardenHmacClientFactory factory) =>
-{
-    // factory.CreateClient("order-service") returns HttpClient
-    // with BaseAddress set to http://localhost:5001 and auto-signing
-    var orderClient = factory.CreateClient("order-service");
-    return Results.Ok(new
-    {
-        ordersBaseUrl = orderClient.BaseAddress?.ToString(),
-        message = "Clients created via IHardenHmacClientFactory auto-sign requests",
-    });
-});
+// Start server in background
+await app.StartAsync();
+Console.WriteLine("Server started on http://localhost:5099");
 
-// Legacy named client demo
-app.MapGet("/api/demo-legacy", async (IHttpClientFactory httpFactory) =>
-{
-    var client = httpFactory.CreateClient("legacy-client");
-    var response = await client.GetAsync("/api/hello");
-    var content = await response.Content.ReadAsStringAsync();
-    return Results.Ok(new { status = (int)response.StatusCode, body = content });
-});
+// ── Client ──
+Console.WriteLine("\n=== Client: signing requests with IHardenHmacClientFactory ===");
 
-app.Run();
+var factory = app.Services.GetRequiredService<IHardenHmacClientFactory>();
+var client = factory.CreateClient("order-service");
+
+// GET request
+Console.WriteLine("\nGET /api/hello");
+var getResponse = await client.GetAsync("/api/hello");
+var getBody = await getResponse.Content.ReadAsStringAsync();
+Console.WriteLine($"  Status: {(int)getResponse.StatusCode}");
+Console.WriteLine($"  Body:   {getBody}");
+
+// POST request with body
+Console.WriteLine("\nPOST /api/echo");
+var postContent = new StringContent("{\"item\":\"widget\",\"qty\":5}", Encoding.UTF8, "application/json");
+var postResponse = await client.PostAsync("/api/echo", postContent);
+var postBody = await postResponse.Content.ReadAsStringAsync();
+Console.WriteLine($"  Status: {(int)postResponse.StatusCode}");
+Console.WriteLine($"  Body:   {postBody}");
+
+// ── Manual signing (without factory) ──
+Console.WriteLine("\n=== Client: manual signing with HmacRequestSigner ===");
+
+var manualConfig = new HmacConfig
+{
+    SharedSecretBase64 = sharedSecret,
+    SignedHeaders = SignedHeadersConfig.Default,
+};
+
+var signer = new HmacRequestSigner(manualConfig);
+var result = signer.Sign("GET", "/api/hello", "");
+
+using var manualClient = new HttpClient { BaseAddress = new Uri("http://localhost:5099") };
+manualClient.DefaultRequestHeaders.Add("X-Harden-Signature", result.Signature);
+manualClient.DefaultRequestHeaders.Add("X-Harden-Timestamp", result.Timestamp.ToString());
+
+Console.WriteLine("\nGET /api/hello (manually signed)");
+var manualResponse = await manualClient.GetAsync("/api/hello");
+var manualBody = await manualResponse.Content.ReadAsStringAsync();
+Console.WriteLine($"  Status: {(int)manualResponse.StatusCode}");
+Console.WriteLine($"  Body:   {manualBody}");
+
+await app.StopAsync();
+Console.WriteLine("\nServer stopped.");

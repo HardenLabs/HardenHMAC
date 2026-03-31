@@ -1,5 +1,7 @@
 module github.com/HardenLabs/HardenHMAC/tests/integration/clients/go
 
-go 1.22
+go 1.21
 
-// TODO: Add hardenlabs-hmac Go SDK dependency once available
+require github.com/HardenLabs/hardenhmac-go v0.0.0
+
+replace github.com/HardenLabs/hardenhmac-go => ../../../../sdk/go

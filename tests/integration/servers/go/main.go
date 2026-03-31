@@ -1,8 +1,3 @@
-// Package main implements the Go HMAC integration test server.
-//
-// REQUIRES: Go installation and hardenlabs-hmac Go SDK.
-// This file is a placeholder — it will not compile until the Go SDK
-// is available and wired in go.mod.
 package main
 
 import (
@@ -13,17 +8,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	hardenhmac "github.com/HardenLabs/hardenhmac-go"
 )
 
-type config struct {
+type configFile struct {
 	Clients map[string]struct {
 		SharedSecret string `json:"sharedSecret"`
 	} `json:"clients"`
 	Ports map[string]int `json:"ports"`
 }
 
-func loadConfig() (*config, error) {
-	// Walk up to find config.json
+func loadConfig() (*configFile, error) {
 	dir, _ := os.Getwd()
 	for dir != "/" {
 		candidate := filepath.Join(dir, "config.json")
@@ -32,7 +28,7 @@ func loadConfig() (*config, error) {
 			if err != nil {
 				return nil, err
 			}
-			var cfg config
+			var cfg configFile
 			if err := json.Unmarshal(data, &cfg); err != nil {
 				return nil, err
 			}
@@ -51,15 +47,26 @@ func main() {
 
 	port := cfg.Ports["go"]
 
-	// TODO: Wire HardenHMAC Go middleware here
-	// For now, endpoints are unprotected placeholders.
+	// Build HmacConfig with Clients from config.json
+	clients := make(map[string]hardenhmac.HmacClientIdentity)
+	for name, c := range cfg.Clients {
+		clients[name] = hardenhmac.HmacClientIdentity{SharedSecret: c.SharedSecret}
+	}
 
-	http.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
+	hmacConfig := &hardenhmac.HmacConfig{
+		TimestampToleranceSeconds: 30,
+		SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+		Clients:                   clients,
+	}
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"message": "hello from go"})
 	})
 
-	http.HandleFunc("/api/echo", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/echo", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		defer r.Body.Close()
 
@@ -75,7 +82,10 @@ func main() {
 		})
 	})
 
+	// Wrap with HMAC validation middleware
+	handler := hardenhmac.NewHmacMiddleware(hmacConfig, nil)(mux)
+
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	log.Printf("Go server listening on port %d", port)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(http.ListenAndServe(addr, handler))
 }

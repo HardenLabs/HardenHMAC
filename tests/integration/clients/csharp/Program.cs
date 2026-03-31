@@ -49,7 +49,7 @@ foreach (var port in configDoc.RootElement.GetProperty("ports").EnumerateObject(
 }
 
 var results = new List<string>();
-var servers = new[] { "csharp", "python", "typescript" };
+var servers = new[] { "csharp", "python", "typescript", "go" };
 
 foreach (var server in servers)
 {

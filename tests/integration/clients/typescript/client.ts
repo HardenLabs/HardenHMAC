@@ -21,7 +21,7 @@ const ports: Record<string, number> = rawConfig.ports;
 const hmacConfig = createHmacConfig(mySecret);
 
 const results: string[] = [];
-const servers = ["csharp", "python", "typescript"];
+const servers = ["csharp", "python", "typescript", "go"];
 
 for (const server of servers) {
   const port = ports[server];

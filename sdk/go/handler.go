@@ -44,7 +44,12 @@ func (t *SigningTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		path = path + "?" + req.URL.RawQuery
 	}
 
-	// Collect existing headers for signed header selection
+	// Set client ID before signing so it's included in the canonical string
+	if t.TargetName != "" {
+		req.Header.Set(ClientIdHeader, t.TargetName)
+	}
+
+	// Collect existing headers (now including client ID) for signed header selection
 	existingHeaders := flattenHeaders(req.Header)
 
 	sigHeaders, err := SignRequestHeaders(t.Config, req.Method, path, bodyStr, existingHeaders, 0)
@@ -54,10 +59,6 @@ func (t *SigningTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 
 	for name, value := range sigHeaders {
 		req.Header.Set(name, value)
-	}
-
-	if t.TargetName != "" {
-		req.Header.Set(ClientIdHeader, t.TargetName)
 	}
 
 	return base.RoundTrip(req)

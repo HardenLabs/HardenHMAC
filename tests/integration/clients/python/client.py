@@ -26,7 +26,7 @@ ports = raw_config["ports"]
 hmac_config = HmacConfig(shared_secret_base64=my_secret)
 
 results: list[str] = []
-servers = ["csharp", "python", "typescript"]
+servers = ["csharp", "python", "typescript", "go"]
 
 for server in servers:
     port = ports.get(server)

@@ -132,6 +132,13 @@ if $has_node; then
     (cd "$SCRIPT_DIR/clients/typescript" && npm install --silent 2>&1 | tail -1)
 fi
 
+if $has_go; then
+    echo "  Building Go server..."
+    (cd "$SCRIPT_DIR/servers/go" && go build -o /dev/null . 2>&1 | tail -1)
+    echo "  Building Go client..."
+    (cd "$SCRIPT_DIR/clients/go" && go build -o /dev/null . 2>&1 | tail -1)
+fi
+
 echo ""
 
 # ============================================================
@@ -160,6 +167,13 @@ if $has_node; then
     PIDS+=($!)
 fi
 
+if $has_go; then
+    echo "  Starting Go server..."
+    (cd "$SCRIPT_DIR/servers/go" && go run .) \
+        > "$SCRIPT_DIR/servers/go/server.log" 2>&1 &
+    PIDS+=($!)
+fi
+
 echo ""
 echo "=== Waiting for servers ==="
 
@@ -167,10 +181,12 @@ echo "=== Waiting for servers ==="
 CSHARP_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports']['csharp'])" 2>/dev/null || echo 9100)
 PYTHON_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports']['python'])" 2>/dev/null || echo 9101)
 TS_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports']['typescript'])" 2>/dev/null || echo 9102)
+GO_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports']['go'])" 2>/dev/null || echo 9103)
 
 SERVER_READY_CSHARP=false
 SERVER_READY_PYTHON=false
 SERVER_READY_TS=false
+SERVER_READY_GO=false
 
 if $has_dotnet; then
     if wait_for_port "$CSHARP_PORT" "C# server" 30; then
@@ -187,6 +203,12 @@ fi
 if $has_node; then
     if wait_for_port "$TS_PORT" "TypeScript server" 15; then
         SERVER_READY_TS=true
+    fi
+fi
+
+if $has_go; then
+    if wait_for_port "$GO_PORT" "Go server" 15; then
+        SERVER_READY_GO=true
     fi
 fi
 
@@ -223,6 +245,11 @@ if $has_node; then
         "cd '$SCRIPT_DIR/clients/typescript' && npx tsx client.ts"
 fi
 
+if $has_go; then
+    run_client "Go client" \
+        "cd '$SCRIPT_DIR/clients/go' && go run ."
+fi
+
 echo ""
 
 # ============================================================
@@ -237,12 +264,12 @@ SKIP_COUNT=$(echo "$ALL_RESULTS" | grep -c "^SKIP" || true)
 TOTAL=$((PASS_COUNT + FAIL_COUNT))
 
 # Print header
-printf "%-20s | %-15s | %-15s | %-15s\n" "" "csharp-server" "python-server" "ts-server"
-printf "%-20s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "---------------" "---------------" "---------------"
+printf "%-20s | %-15s | %-15s | %-15s | %-15s\n" "" "csharp-server" "python-server" "ts-server" "go-server"
+printf "%-20s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "---------------" "---------------" "---------------" "---------------"
 
-for client in "csharp-client" "python-client" "typescript-client"; do
+for client in "csharp-client" "python-client" "typescript-client" "go-client"; do
     row=""
-    for server in "csharp-server" "python-server" "typescript-server"; do
+    for server in "csharp-server" "python-server" "typescript-server" "go-server"; do
         get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
         post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
 

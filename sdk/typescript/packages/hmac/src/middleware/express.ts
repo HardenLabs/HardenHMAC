@@ -73,12 +73,10 @@ export function hardenHmacMiddleware(
       }
     }
 
-    const signatureHeader = req.headers[SIGNATURE_HEADER.toLowerCase()] as
-      | string
-      | undefined;
-    const timestampHeader = req.headers[TIMESTAMP_HEADER.toLowerCase()] as
-      | string
-      | undefined;
+    const rawSig = req.headers[SIGNATURE_HEADER.toLowerCase()];
+    const signatureHeader = Array.isArray(rawSig) ? rawSig[0] : rawSig;
+    const rawTs = req.headers[TIMESTAMP_HEADER.toLowerCase()];
+    const timestampHeader = Array.isArray(rawTs) ? rawTs[0] : rawTs;
 
     // Resolve secret (sync or async)
     const resolveAndValidate = (effectiveSecret: string | null | undefined): void => {

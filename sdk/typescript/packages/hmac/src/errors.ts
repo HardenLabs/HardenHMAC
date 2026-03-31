@@ -12,7 +12,7 @@ export class HmacValidationError extends Error {
   readonly errorType: HmacErrorType;
 
   constructor(errorType: HmacErrorType, message: string) {
-    super(`${errorType}: ${message}`);
+    super(message);
     this.name = "HmacValidationError";
     this.errorType = errorType;
   }

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { resolve, dirname } from "node:path";
 import { describe, it, expect } from "vitest";
 import { buildCanonicalString } from "../src/canonical.js";
 import type { SignedHeadersConfig } from "../src/config.js";
@@ -31,6 +32,8 @@ interface TestVectorFile {
 }
 
 function loadVectors(): TestVector[] {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
   const vectorPath = resolve(
     __dirname,
     "../../../../../tests/cross-language/test-vectors.json"

@@ -67,10 +67,40 @@ export function createSignedFetch(
     url: string | URL,
     init?: RequestInit
   ): Promise<Response> => {
-    const parsedUrl = typeof url === "string" ? new URL(url) : url;
-    const path = parsedUrl.pathname + parsedUrl.search;
+    let path: string;
+    if (typeof url === "string") {
+      // Handle both absolute URLs and relative paths
+      if (url.startsWith("/") || url.startsWith("?")) {
+        path = url;
+      } else {
+        try {
+          const parsedUrl = new URL(url);
+          path = parsedUrl.pathname + parsedUrl.search;
+        } catch {
+          // Treat as relative path if URL parsing fails
+          path = url;
+        }
+      }
+    } else {
+      path = url.pathname + url.search;
+    }
+
     const method = init?.method ?? "GET";
-    const body = init?.body ? String(init.body) : "";
+
+    // Only string bodies are supported for HMAC signing.
+    // Non-string bodies (Blob, FormData, ReadableStream, etc.) cannot be
+    // reliably converted to the same bytes the server will receive.
+    let body = "";
+    if (init?.body !== undefined && init?.body !== null) {
+      if (typeof init.body === "string") {
+        body = init.body;
+      } else {
+        throw new Error(
+          "HardenHMAC: Only string request bodies are supported for HMAC signing. " +
+          "Convert your body to a string before passing it to fetch."
+        );
+      }
+    }
 
     // Collect existing headers
     const existingHeaders: Record<string, string> = {};

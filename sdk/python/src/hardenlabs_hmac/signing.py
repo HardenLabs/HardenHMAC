@@ -15,7 +15,7 @@ def sign(shared_secret_base64: str, canonical_string: str) -> str:
     Returns:
         Lowercase hexadecimal signature string (64 characters).
     """
-    key_bytes = base64.b64decode(shared_secret_base64)
+    key_bytes = base64.b64decode(shared_secret_base64, validate=True)
     data_bytes = canonical_string.encode("utf-8")
     digest = hmac_module.new(key_bytes, data_bytes, hashlib.sha256).hexdigest()
     return digest

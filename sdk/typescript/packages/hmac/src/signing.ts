@@ -11,9 +11,21 @@ function validateBase64(input: string, label: string): void {
   if (stripped.length === 0) {
     throw new Error(`${label} is empty after stripping whitespace.`);
   }
+  if (stripped.length % 4 !== 0) {
+    throw new Error(
+      `${label} is not valid Base64. Length must be a multiple of 4 (got ${stripped.length}).`
+    );
+  }
   if (!BASE64_REGEX.test(stripped)) {
     throw new Error(
       `${label} is not valid Base64. Contains characters outside the Base64 alphabet.`
+    );
+  }
+  // Round-trip validation: decode then re-encode to catch padding mismatches
+  const decoded = Buffer.from(stripped, "base64");
+  if (decoded.toString("base64") !== stripped) {
+    throw new Error(
+      `${label} is not valid Base64. Decoded/re-encoded value does not match input.`
     );
   }
 }

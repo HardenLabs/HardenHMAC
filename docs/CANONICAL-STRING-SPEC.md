@@ -196,7 +196,7 @@ Note the alphabetical sort order: authorization, content-type, x-custom-a, x-cus
 | Header value with internal whitespace | Preserved (only leading/trailing trimmed) |
 | Duplicate header names | Implementation-defined; typically last value wins |
 | Non-ASCII body | UTF-8 encoded for HMAC computation |
-| Path with fragment (`#`) | Include fragment in path as-is |
+| Path with fragment (`#`) | Fragments are not transmitted in HTTP requests and are not part of the canonical path |
 
 ## Versioning
 

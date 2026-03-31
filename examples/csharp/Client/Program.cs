@@ -6,8 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 // Same shared secret as the server — in production, load from config/env
 var sharedSecret = Convert.ToBase64String("my-shared-secret-key-32-bytes!!"u8.ToArray());
 
-// ── Option A: Multi-target factory (recommended) ──
-Console.WriteLine("=== Multi-target factory ===");
+// Create a client for the server target — BaseUrl and signing are pre-configured
 
 var config = new HmacConfig
 {
@@ -37,16 +36,3 @@ var postResponse = await client.PostAsync("/api/echo", postContent);
 var postBody = await postResponse.Content.ReadAsStringAsync();
 Console.WriteLine($"POST /api/echo: {(int)postResponse.StatusCode} {postBody}");
 
-// ── Option B: Manual signing ──
-Console.WriteLine("\n=== Manual signing ===");
-
-var signer = new HmacRequestSigner(config);
-var result = signer.Sign("GET", "/api/hello", "");
-
-using var manualClient = new HttpClient { BaseAddress = new Uri("http://localhost:5000") };
-manualClient.DefaultRequestHeaders.Add("X-Harden-Signature", result.Signature);
-manualClient.DefaultRequestHeaders.Add("X-Harden-Timestamp", result.Timestamp.ToString());
-
-var manualResponse = await manualClient.GetAsync("/api/hello");
-var manualBody = await manualResponse.Content.ReadAsStringAsync();
-Console.WriteLine($"GET /api/hello: {(int)manualResponse.StatusCode} {manualBody}");

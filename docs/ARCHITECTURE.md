@@ -184,6 +184,47 @@ Each language provides a factory that creates pre-configured HTTP clients:
 - **Python**: `HmacClientFactory.create_client(targetName)` returns `httpx.AsyncClient` (or `create_sync_client` for sync)
 - **TypeScript**: `createHmacClientFactory(config).createClient(targetName)` returns a signed fetch wrapper
 
+## Multi-Client Server Configuration
+
+For servers that accept requests from a known set of clients, each with their own shared secret, use the `Clients` dictionary on `HmacConfig`. Clients identify themselves by sending an `X-Harden-Client-Id` header.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Middleware
+    participant Config
+
+    Client->>Middleware: HTTP request + X-Harden-Client-Id: order-service
+    Middleware->>Config: clients["order-service"]
+    Config-->>Middleware: HmacClientIdentity { sharedSecret }
+    Middleware->>Middleware: validate with client's secret
+```
+
+### Resolution Order
+
+The middleware resolves the shared secret in this order:
+
+1. **secretResolver callback** (if provided and returns non-null) -- highest priority
+2. **X-Harden-Client-Id header** present and found in `config.Clients` -- use that client's secret
+3. **X-Harden-Client-Id header** present but NOT found in `config.Clients` -- reject with `unknown_client` (401)
+4. **No X-Harden-Client-Id header** -- fall back to `config.SharedSecretBase64`
+5. **No secret resolved** -- reject with `no_secret` (401)
+
+### X-Harden-Client-Id Is Signed
+
+Unlike other `X-Harden-*` headers (Signature, Timestamp, Signed-Headers), the `X-Harden-Client-Id` header IS included in the HMAC signature. It is an identity claim, not signing metadata, so it must be protected against tampering.
+
+### Client-Side Auto-Send
+
+When using the client factory (`CreateClient`/`createClient`/`create_client`), the target name is automatically sent as `X-Harden-Client-Id`. The server uses this to look up the correct shared secret.
+
+| Header | Purpose | Signed? |
+|--------|---------|---------|
+| `X-Harden-Signature` | HMAC signature | No (excluded) |
+| `X-Harden-Timestamp` | Unix timestamp | No (excluded) |
+| `X-Harden-Signed-Headers` | Header names | No (excluded) |
+| `X-Harden-Client-Id` | Client identity | **Yes (included)** |
+
 ## Secret Resolver (Server-Side Multi-Tenant)
 
 For servers that validate requests from multiple clients with different secrets, middleware accepts an optional `secretResolver` callback:

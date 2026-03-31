@@ -12,9 +12,11 @@ import (
 func TestClientFactory_CreateClient(t *testing.T) {
 	// Start a test server that validates HMAC and echoes the body
 	serverConfig := &HmacConfig{
-		SharedSecretBase64:        testSecret,
 		TimestampToleranceSeconds: 30,
 		SignedHeaders:             NoneSignedHeadersConfig(),
+		Clients: map[string]HmacClientIdentity{
+			"test-service": {SharedSecret: testSecret},
+		},
 	}
 
 	var receivedClientID string
@@ -93,9 +95,11 @@ func TestClientFactory_TargetSecretOverride(t *testing.T) {
 	// Server expects a different secret than the global one
 	targetSecret := "YW5vdGhlci10ZXN0LWtleS0yNTYtYml0cy1sb25nISE="
 	serverConfig := &HmacConfig{
-		SharedSecretBase64:        targetSecret,
 		TimestampToleranceSeconds: 30,
 		SignedHeaders:             NoneSignedHeadersConfig(),
+		Clients: map[string]HmacClientIdentity{
+			"override-target": {SharedSecret: targetSecret},
+		},
 	}
 
 	server := httptest.NewServer(

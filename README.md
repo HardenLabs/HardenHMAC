@@ -223,6 +223,62 @@ const ordersClient = factory.createClient("order-service");
 const response = await ordersClient("/api/orders"); // auto-signed, correct base URL
 ```
 
+## Multi-Client Server Configuration
+
+For servers that accept requests from multiple known clients, each with their own secret, use the `Clients` dictionary. Clients identify themselves via the `X-Harden-Client-Id` header.
+
+### C# -- Multi-Client Server
+
+```csharp
+var config = new HmacConfig
+{
+    SharedSecretBase64 = "fallback-secret",  // used when no client ID header
+    SignedHeaders = SignedHeadersConfig.Default,
+    TimestampToleranceSeconds = 30,
+    Clients = new Dictionary<string, HmacClientIdentity>
+    {
+        ["order-service"] = new HmacClientIdentity { SharedSecret = "orders-base64-secret" },
+        ["payment-service"] = new HmacClientIdentity { SharedSecret = "payments-base64-secret" },
+    },
+};
+
+builder.Services.AddHardenHmac(config);
+app.UseHardenHmac();
+// Requests with X-Harden-Client-Id: order-service -> validated with orders secret
+// Requests with X-Harden-Client-Id: unknown -> rejected with 401 unknown_client
+// Requests without X-Harden-Client-Id -> validated with fallback secret
+```
+
+### Python -- Multi-Client Server
+
+```python
+from hardenlabs_hmac.config import HmacClientIdentity, HmacConfig, SignedHeadersConfig
+
+config = HmacConfig(
+    shared_secret_base64="fallback-secret",
+    signed_headers=SignedHeadersConfig.default(),
+    clients={
+        "order-service": HmacClientIdentity(shared_secret="orders-base64-secret"),
+        "payment-service": HmacClientIdentity(shared_secret="payments-base64-secret"),
+    },
+)
+app.add_middleware(HardenHmacMiddleware, config=config)
+```
+
+### TypeScript -- Multi-Client Server
+
+```typescript
+const config = createHmacConfig("fallback-secret", {
+  clients: {
+    "order-service": { sharedSecret: "orders-base64-secret" },
+    "payment-service": { sharedSecret: "payments-base64-secret" },
+  },
+});
+app.use(hardenHmacMiddleware(config));
+```
+
+The client factory automatically adds the `X-Harden-Client-Id` header when creating clients via `CreateClient`/`createClient`.
+
 ## Environment Variable Configuration
 
 All SDKs support loading configuration from environment variables with the `HARDEN_HMAC_` prefix.
@@ -321,17 +377,18 @@ Control which headers are included in the signature:
 | `AdditionalHeaders` | `[]` | Explicit list of extra headers to include |
 | `ExcludeHeaders` | `[]` | Override: exclude specific headers |
 
-`X-Harden-*` headers (which carry the signature itself) are always excluded.
+`X-Harden-*` headers (which carry the signature itself) are always excluded, **except** `X-Harden-Client-Id` which is an identity claim and is included in the signature when present.
 
 Headers are sorted alphabetically by lowercase name, values are trimmed, and the format is `name:value` joined by `\n`.
 
 ## HTTP Headers
 
-| Header | Purpose |
-|--------|---------|
-| `X-Harden-Signature` | 64-char lowercase hex HMAC-SHA256 signature |
-| `X-Harden-Timestamp` | Unix timestamp in seconds |
-| `X-Harden-Signed-Headers` | Semicolon-separated signed header names (only if headers are signed) |
+| Header | Purpose | Signed? |
+|--------|---------|---------|
+| `X-Harden-Signature` | 64-char lowercase hex HMAC-SHA256 signature | No |
+| `X-Harden-Timestamp` | Unix timestamp in seconds | No |
+| `X-Harden-Signed-Headers` | Semicolon-separated signed header names (only if headers are signed) | No |
+| `X-Harden-Client-Id` | Client identity for multi-client server resolution | **Yes** |
 
 ## Framework Middleware
 

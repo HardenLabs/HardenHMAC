@@ -80,6 +80,7 @@ export function createHmacConfig(
   return {
     sharedSecretBase64,
     targets: overrides?.targets,
+    clients: overrides?.clients,
     signedHeaders: overrides?.signedHeaders ?? defaultSignedHeadersConfig(),
     timestampToleranceSeconds:
       overrides?.timestampToleranceSeconds ??

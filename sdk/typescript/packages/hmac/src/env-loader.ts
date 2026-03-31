@@ -11,11 +11,12 @@ import {
 /**
  * Try to load dotenv if it's available as a peer dependency.
  * This is a best-effort load — if dotenv is not installed, we skip silently.
+ * Uses dynamic import() for ESM compatibility.
  */
-function tryLoadDotenv(): void {
+async function tryLoadDotenv(): Promise<void> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("dotenv").config();
+    const dotenv = await import("dotenv");
+    dotenv.config();
   } catch {
     // dotenv is an optional peer dependency — skip if not available
   }
@@ -44,12 +45,23 @@ function parseBool(value: string | undefined, defaultValue: boolean): boolean {
  * @param env - Optional env object for testing. Defaults to process.env.
  * @returns Parsed HmacConfig.
  */
-export function fromEnv(
+/**
+ * Parse an integer from a string, returning the default if the value is
+ * undefined, empty, or not a valid integer.
+ */
+function safeParseInt(value: string | undefined, defaultValue: number): number {
+  if (value === undefined || value === "") return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed)) return defaultValue;
+  return parsed;
+}
+
+export async function fromEnv(
   prefix: string = "HARDEN_HMAC_",
   env?: Record<string, string | undefined>
-): HmacConfig {
+): Promise<HmacConfig> {
   if (!env) {
-    tryLoadDotenv();
+    await tryLoadDotenv();
     env = process.env;
   }
 
@@ -66,9 +78,10 @@ export function fromEnv(
 
   // Parse global settings
   const sharedSecretBase64 = prefixed["SHARED_SECRET_BASE64"] ?? "";
-  const timestampToleranceSeconds = prefixed["TIMESTAMP_TOLERANCE_SECONDS"]
-    ? parseInt(prefixed["TIMESTAMP_TOLERANCE_SECONDS"], 10)
-    : DEFAULT_TIMESTAMP_TOLERANCE_SECONDS;
+  const timestampToleranceSeconds = safeParseInt(
+    prefixed["TIMESTAMP_TOLERANCE_SECONDS"],
+    DEFAULT_TIMESTAMP_TOLERANCE_SECONDS
+  );
 
   // Parse signed headers
   const signedHeaders: SignedHeadersConfig = {
@@ -121,10 +134,8 @@ export function fromEnv(
 
     let targetTimestampTolerance: number | undefined;
     if (fields["TIMESTAMP_TOLERANCE_SECONDS"] !== undefined) {
-      targetTimestampTolerance = parseInt(
-        fields["TIMESTAMP_TOLERANCE_SECONDS"],
-        10
-      );
+      const parsed = parseInt(fields["TIMESTAMP_TOLERANCE_SECONDS"], 10);
+      targetTimestampTolerance = isNaN(parsed) ? undefined : parsed;
     }
 
     targets[name] = {

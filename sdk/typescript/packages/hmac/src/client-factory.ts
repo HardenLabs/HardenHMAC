@@ -53,7 +53,19 @@ export function createHmacClientFactory(
       ): Promise<Response> => {
         const fullUrl = `${baseUrl}${path}`;
         const method = init?.method ?? "GET";
-        const body = init?.body ? String(init.body) : "";
+
+        // Only string bodies are supported for HMAC signing.
+        let body = "";
+        if (init?.body !== undefined && init?.body !== null) {
+          if (typeof init.body === "string") {
+            body = init.body;
+          } else {
+            throw new Error(
+              "HardenHMAC: Only string request bodies are supported for HMAC signing. " +
+              "Convert your body to a string before passing it to fetch."
+            );
+          }
+        }
 
         // Collect existing headers
         const existingHeaders: Record<string, string> = {};

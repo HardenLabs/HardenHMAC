@@ -41,8 +41,9 @@ export function sign(
   sharedSecretBase64: string,
   canonicalString: string
 ): string {
-  validateBase64(sharedSecretBase64, "sharedSecretBase64");
-  const keyBytes = Buffer.from(sharedSecretBase64, "base64");
+  const stripped = sharedSecretBase64.replace(/\s/g, "");
+  validateBase64(stripped, "sharedSecretBase64");
+  const keyBytes = Buffer.from(stripped, "base64");
   const hmac = createHmac("sha256", keyBytes);
   hmac.update(canonicalString, "utf8");
   return hmac.digest("hex");
@@ -61,7 +62,7 @@ export function verify(
   canonicalString: string,
   signature: string
 ): boolean {
-  validateBase64(sharedSecretBase64, "sharedSecretBase64");
+  // sign() handles stripping and validation
   const expected = sign(sharedSecretBase64, canonicalString);
   const expectedBuf = Buffer.from(expected, "utf8");
   const signatureBuf = Buffer.from(signature, "utf8");

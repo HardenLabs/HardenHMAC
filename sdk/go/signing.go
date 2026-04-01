@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"strings"
 )
 
 // Sign computes HMAC-SHA256 and returns the lowercase hex signature (64 characters).
@@ -51,11 +52,13 @@ func Verify(sharedSecretBase64 string, canonicalString string, signature string)
 
 // decodeSharedSecret decodes and validates a Base64-encoded shared secret.
 func decodeSharedSecret(sharedSecretBase64 string) ([]byte, error) {
-	if sharedSecretBase64 == "" {
+	// Strip whitespace to match C#/TypeScript/Python behavior
+	stripped := strings.Join(strings.Fields(sharedSecretBase64), "")
+	if stripped == "" {
 		return nil, errors.New("shared secret is empty")
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(sharedSecretBase64)
+	decoded, err := base64.StdEncoding.DecodeString(stripped)
 	if err != nil {
 		return nil, errors.New("shared secret is not valid Base64: " + err.Error())
 	}

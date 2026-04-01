@@ -31,9 +31,10 @@ public sealed class HardenHmacDelegatingHandler : DelegatingHandler
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        // Add X-Harden-Client-Id if configured
+        // Set X-Harden-Client-Id if configured (remove first to avoid duplicates)
         if (!string.IsNullOrEmpty(_clientId))
         {
+            request.Headers.Remove(HardenHmacConstants.ClientIdHeader);
             request.Headers.TryAddWithoutValidation(
                 HardenHmacConstants.ClientIdHeader, _clientId);
         }
@@ -62,6 +63,11 @@ public sealed class HardenHmacDelegatingHandler : DelegatingHandler
         }
 
         var result = _signer.Sign(method, path, body, requestHeaders);
+
+        // Remove then set signing headers to avoid duplicate values
+        request.Headers.Remove(HardenHmacConstants.SignatureHeader);
+        request.Headers.Remove(HardenHmacConstants.TimestampHeader);
+        request.Headers.Remove(HardenHmacConstants.SignedHeadersHeader);
 
         request.Headers.TryAddWithoutValidation(
             HardenHmacConstants.SignatureHeader, result.Signature);

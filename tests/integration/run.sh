@@ -8,7 +8,7 @@
 #   - .NET 8 SDK (for C# server/client)
 #   - Python 3.10+ with pip (for Python server/client)
 #   - Node.js 18+ with npm (for TypeScript server/client)
-#   - Go 1.22+ (optional, for Go server/client)
+#   - Go 1.21+ (optional, for Go server/client)
 
 set -eo pipefail
 
@@ -123,7 +123,7 @@ fi
 
 if $has_node; then
     echo "  Building TypeScript SDK..."
-    (cd "$SCRIPT_DIR/../../sdk/typescript/packages/hmac" && npm install --silent 2>&1 | tail -1 && npm install --save-dev dotenv --silent 2>&1 | tail -1 && npm run build --silent 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/../../sdk/typescript/packages/hmac" && npm install --silent 2>&1 | tail -1 && npm run build --silent 2>&1 | tail -1)
 
     echo "  Installing TypeScript server dependencies..."
     (cd "$SCRIPT_DIR/servers/typescript" && npm install --silent 2>&1 | tail -1)
@@ -267,7 +267,7 @@ TOTAL=$((PASS_COUNT + FAIL_COUNT))
 printf "%-20s | %-15s | %-15s | %-15s | %-15s\n" "" "csharp-server" "python-server" "ts-server" "go-server"
 printf "%-20s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "---------------" "---------------" "---------------" "---------------"
 
-for client in "csharp-client" "python-client" "typescript-client" "go-client"; do
+for client in "csharp-client" "python-client/httpx" "python-client/requests" "typescript-client/fetch" "typescript-client/axios" "go-client"; do
     row=""
     for server in "csharp-server" "python-server" "typescript-server" "go-server"; do
         get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)

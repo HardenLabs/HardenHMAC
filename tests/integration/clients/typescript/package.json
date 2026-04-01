@@ -7,7 +7,8 @@
     "start": "tsx client.ts"
   },
   "dependencies": {
-    "@hardenlabs/hmac": "file:../../../../sdk/typescript/packages/hmac"
+    "@hardenlabs/hmac": "file:../../../../sdk/typescript/packages/hmac",
+    "axios": "^1.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

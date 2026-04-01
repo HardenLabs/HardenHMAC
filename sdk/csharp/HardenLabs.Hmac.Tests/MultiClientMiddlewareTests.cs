@@ -73,7 +73,11 @@ public class MultiClientMiddlewareTests : IAsyncLifetime
     public async Task KnownClient_ValidSignature_Returns200()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var canonical = CanonicalStringBuilder.Build("GET", "/api/test", "", timestamp, SignedHeadersConfig.None);
+        var requestHeaders = new Dictionary<string, string>
+        {
+            [HardenHmacConstants.ClientIdHeader] = "order-service",
+        };
+        var canonical = CanonicalStringBuilder.Build("GET", "/api/test", "", timestamp, SignedHeadersConfig.None, requestHeaders);
         var signature = HmacSigner.Sign(OrderSecret, canonical);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/test");
@@ -141,7 +145,11 @@ public class MultiClientMiddlewareTests : IAsyncLifetime
     public async Task PaymentClient_UsesPaymentSecret()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var canonical = CanonicalStringBuilder.Build("GET", "/api/test", "", timestamp, SignedHeadersConfig.None);
+        var requestHeaders = new Dictionary<string, string>
+        {
+            [HardenHmacConstants.ClientIdHeader] = "payment-service",
+        };
+        var canonical = CanonicalStringBuilder.Build("GET", "/api/test", "", timestamp, SignedHeadersConfig.None, requestHeaders);
         var signature = HmacSigner.Sign(PaymentSecret, canonical);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/test");

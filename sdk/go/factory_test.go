@@ -245,7 +245,8 @@ func TestMiddleware_ClientIdResolution_WithClientMap(t *testing.T) {
 	// Sign with service-b's secret
 	ts := strconv.FormatInt(1700000000, 10)
 	sigConfig := NoneSignedHeadersConfig()
-	canonical := BuildCanonicalString("GET", "/test", "", 1700000000, &sigConfig, nil)
+	reqHeaders := map[string]string{ClientIdHeader: "service-b"}
+	canonical, _ := BuildCanonicalString("GET", "/test", "", 1700000000, &sigConfig, reqHeaders)
 	sig, _ := Sign(secretB, canonical)
 
 	req := httptest.NewRequest("GET", "/test", nil)

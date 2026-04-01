@@ -19,7 +19,7 @@ func SignRequestHeaders(config *HmacConfig, method, path, body string, requestHe
 
 	_, headerNames := BuildSignedHeaders(config.SignedHeaders, requestHeaders)
 
-	canonicalString := BuildCanonicalString(
+	canonicalString, err := BuildCanonicalString(
 		method,
 		path,
 		body,
@@ -27,6 +27,9 @@ func SignRequestHeaders(config *HmacConfig, method, path, body string, requestHe
 		&config.SignedHeaders,
 		requestHeaders,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	signature, err := Sign(config.SharedSecretBase64, canonicalString)
 	if err != nil {

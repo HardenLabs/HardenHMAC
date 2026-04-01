@@ -424,6 +424,27 @@
       "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
       "expected_canonical_string": "POST\n/api/multi-header\nx-custom:alpha, beta\n\n1700000040",
       "expected_signature": "a68641fb2e240952577b71f271e32b89d175ba6761deb3e73df63c9b2e0e4e41"
+    },
+    {
+      "id": "client-id-signed-without-x-headers",
+      "description": "X-Harden-Client-Id is always signed even when include_x_headers is false (ATK-3: identity claim must not be spoofable)",
+      "method": "GET",
+      "path": "/api/secure",
+      "body": "",
+      "timestamp": 1700000050,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": false,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "X-Harden-Client-Id": "my-client",
+        "X-Custom-Header": "should-not-be-signed"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "GET\n/api/secure\nx-harden-client-id:my-client\n\n1700000050",
+      "expected_signature": "10ae01407f75f12ee10739dc33d0dafcde4c1717db2036dbf54d3d3426cc6fa9"
     }
   ]
 }

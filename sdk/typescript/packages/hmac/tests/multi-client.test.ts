@@ -34,7 +34,8 @@ function signReq(
   secret: string,
   method: string,
   path: string,
-  body: string = ""
+  body: string = "",
+  requestHeaders?: Record<string, string>
 ): { signature: string; timestamp: string } {
   const ts = Math.floor(Date.now() / 1000);
   const canonical = buildCanonicalString({
@@ -43,6 +44,7 @@ function signReq(
     body,
     timestamp: ts,
     signedHeadersConfig: noneConfig,
+    requestHeaders,
   });
   return { signature: sign(secret, canonical), timestamp: String(ts) };
 }
@@ -81,7 +83,9 @@ describe("Express middleware with config.clients", () => {
     const { signature, timestamp } = signReq(
       ORDER_SECRET,
       "GET",
-      "/api/test"
+      "/api/test",
+      "",
+      { [CLIENT_ID_HEADER]: "order-service" }
     );
     const response = await fetch(`${baseUrl}/api/test`, {
       headers: {
@@ -146,7 +150,9 @@ describe("Express middleware with config.clients", () => {
     const { signature, timestamp } = signReq(
       PAYMENT_SECRET,
       "GET",
-      "/api/test"
+      "/api/test",
+      "",
+      { [CLIENT_ID_HEADER]: "payment-service" }
     );
     const response = await fetch(`${baseUrl}/api/test`, {
       headers: {

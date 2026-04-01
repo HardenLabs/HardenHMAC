@@ -33,6 +33,11 @@ public static class CanonicalStringBuilder
         ArgumentNullException.ThrowIfNull(method);
         ArgumentNullException.ThrowIfNull(path);
 
+        if (method.Contains('\n'))
+            throw new ArgumentException("method must not contain newline characters", nameof(method));
+        if (path.Contains('\n'))
+            throw new ArgumentException("path must not contain newline characters", nameof(path));
+
         var config = signedHeadersConfig ?? SignedHeadersConfig.None;
         var headers = requestHeaders ?? new Dictionary<string, string>();
         var signedHeadersString = BuildSignedHeadersString(config, headers);
@@ -111,6 +116,12 @@ public static class CanonicalStringBuilder
                 lowerName.StartsWith(XHeaderPrefixLower) &&
                 (!lowerName.StartsWith(HardenHeaderPrefixLower) ||
                  string.Equals(lowerName, ClientIdHeaderLower, StringComparison.Ordinal)))
+            {
+                include = true;
+            }
+
+            // X-Harden-Client-Id is always signed when present (identity claim must not be spoofable)
+            if (string.Equals(lowerName, ClientIdHeaderLower, StringComparison.Ordinal))
             {
                 include = true;
             }

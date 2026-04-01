@@ -103,6 +103,33 @@ def test_no_matching_headers_empty() -> None:
     assert result == "GET\n/api\n\n\n1700000000"
 
 
+# ATK-1: Newline injection validation
+def test_newline_in_method_raises() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="method must not contain newline characters"):
+        build_canonical_string("GET\nX-Injected:evil", "/api/test", "", 1700000000)
+
+
+def test_newline_in_path_raises() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="path must not contain newline characters"):
+        build_canonical_string("GET", "/api/test\nX-Injected:evil", "", 1700000000)
+
+
+# ATK-3: X-Harden-Client-Id always signed
+def test_client_id_signed_even_when_x_headers_disabled() -> None:
+    config = SignedHeadersConfig(include_authorization=False, include_x_headers=False)
+    headers = {
+        "X-Harden-Client-Id": "my-client",
+        "X-Custom-Header": "should-not-be-signed",
+    }
+    result = build_canonical_string("GET", "/api/secure", "", 1700000050, config, headers)
+    assert "x-harden-client-id:my-client" in result
+    assert "x-custom-header" not in result
+
+
 def test_build_signed_headers_returns_names() -> None:
     config = SignedHeadersConfig(include_authorization=True, include_x_headers=True)
     headers = {

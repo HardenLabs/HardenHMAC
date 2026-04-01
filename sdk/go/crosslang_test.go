@@ -75,7 +75,7 @@ func TestCrossLanguage_CanonicalString(t *testing.T) {
 				ExcludeHeaders:       v.SignedHeadersConfig.ExcludeHeaders,
 			}
 
-			result := BuildCanonicalString(
+			result, err := BuildCanonicalString(
 				v.Method,
 				v.Path,
 				v.Body,
@@ -83,6 +83,9 @@ func TestCrossLanguage_CanonicalString(t *testing.T) {
 				config,
 				v.RequestHeaders,
 			)
+			if err != nil {
+				t.Fatalf("BuildCanonicalString failed for %s: %v", v.ID, err)
+			}
 
 			if result != v.ExpectedCanonicalString {
 				t.Errorf("canonical string mismatch for %s:\ngot:  %q\nwant: %q", v.ID, result, v.ExpectedCanonicalString)
@@ -103,7 +106,7 @@ func TestCrossLanguage_Signature(t *testing.T) {
 				ExcludeHeaders:       v.SignedHeadersConfig.ExcludeHeaders,
 			}
 
-			canonical := BuildCanonicalString(
+			canonical, err := BuildCanonicalString(
 				v.Method,
 				v.Path,
 				v.Body,
@@ -111,6 +114,9 @@ func TestCrossLanguage_Signature(t *testing.T) {
 				config,
 				v.RequestHeaders,
 			)
+			if err != nil {
+				t.Fatalf("BuildCanonicalString failed for %s: %v", v.ID, err)
+			}
 
 			sig, err := Sign(v.SharedSecretBase64, canonical)
 			if err != nil {
@@ -136,7 +142,7 @@ func TestCrossLanguage_Verify(t *testing.T) {
 				ExcludeHeaders:       v.SignedHeadersConfig.ExcludeHeaders,
 			}
 
-			canonical := BuildCanonicalString(
+			canonical, err := BuildCanonicalString(
 				v.Method,
 				v.Path,
 				v.Body,
@@ -144,6 +150,9 @@ func TestCrossLanguage_Verify(t *testing.T) {
 				config,
 				v.RequestHeaders,
 			)
+			if err != nil {
+				t.Fatalf("BuildCanonicalString failed for %s: %v", v.ID, err)
+			}
 
 			ok, err := Verify(v.SharedSecretBase64, canonical, v.ExpectedSignature)
 			if err != nil {

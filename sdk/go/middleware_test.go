@@ -24,7 +24,10 @@ func okHandler() http.Handler {
 func signedRequest(t *testing.T, method, path, body string, config *HmacConfig) *http.Request {
 	t.Helper()
 	ts := time.Now().Unix()
-	canonical := BuildCanonicalString(method, path, body, ts, &config.SignedHeaders, nil)
+	canonical, err := BuildCanonicalString(method, path, body, ts, &config.SignedHeaders, nil)
+	if err != nil {
+		t.Fatalf("BuildCanonicalString failed: %v", err)
+	}
 	sig, err := Sign(config.SharedSecretBase64, canonical)
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)
@@ -156,9 +159,14 @@ func TestMiddleware_ClientIdResolution(t *testing.T) {
 	handler := middleware(okHandler())
 
 	ts := time.Now().Unix()
-	// Sign with the client's secret
+	// Sign with the client's secret — must include X-Harden-Client-Id in signed headers
+	// since ATK-3 fix always signs the client identity claim
 	sigConfig := NoneSignedHeadersConfig()
-	canonical := BuildCanonicalString("GET", "/test", "", ts, &sigConfig, nil)
+	reqHeaders := map[string]string{ClientIdHeader: "client-a"}
+	canonical, err := BuildCanonicalString("GET", "/test", "", ts, &sigConfig, reqHeaders)
+	if err != nil {
+		t.Fatalf("BuildCanonicalString failed: %v", err)
+	}
 	sig, _ := Sign(testSecret, canonical)
 
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -210,7 +218,10 @@ func TestMiddleware_SecretResolver(t *testing.T) {
 
 	ts := time.Now().Unix()
 	sigConfig := NoneSignedHeadersConfig()
-	canonical := BuildCanonicalString("GET", "/test", "", ts, &sigConfig, nil)
+	canonical, err := BuildCanonicalString("GET", "/test", "", ts, &sigConfig, nil)
+	if err != nil {
+		t.Fatalf("BuildCanonicalString failed: %v", err)
+	}
 	sig, _ := Sign(testSecret, canonical)
 
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -245,7 +256,7 @@ func TestMiddleware_SecretResolverError(t *testing.T) {
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rr.Code)
 	}
-	assertJSONError(t, rr.Body.Bytes(), "secret_resolver_error")
+	assertJSONError(t, rr.Body.Bytes(), "server_error")
 }
 
 func TestMiddleware_SecretResolverFallthrough(t *testing.T) {
@@ -277,7 +288,10 @@ func TestMiddleware_QueryStringPreserved(t *testing.T) {
 	ts := time.Now().Unix()
 	path := "/test?foo=bar&baz=qux"
 	sigConfig := NoneSignedHeadersConfig()
-	canonical := BuildCanonicalString("GET", path, "", ts, &sigConfig, nil)
+	canonical, err := BuildCanonicalString("GET", path, "", ts, &sigConfig, nil)
+	if err != nil {
+		t.Fatalf("BuildCanonicalString failed: %v", err)
+	}
 	sig, _ := Sign(testSecret, canonical)
 
 	req := httptest.NewRequest("GET", path, nil)
@@ -289,6 +303,35 @@ func TestMiddleware_QueryStringPreserved(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+// ATK-4: Secret resolver error must not leak internal details
+func TestMiddleware_SecretResolverError_GenericMessage(t *testing.T) {
+	config := &HmacConfig{
+		SignedHeaders: NoneSignedHeadersConfig(),
+	}
+	resolver := func(r *http.Request) (string, error) {
+		return "", fmt.Errorf("connection refused: postgres://admin:s3cret@db.internal:5432/mydb")
+	}
+	middleware := NewHmacMiddleware(config, resolver)
+	handler := middleware(okHandler())
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set(SignatureHeader, "abc")
+	req.Header.Set(TimestampHeader, strconv.FormatInt(time.Now().Unix(), 10))
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rr.Code)
+	}
+	assertJSONError(t, rr.Body.Bytes(), "server_error")
+	// Verify the internal error details are NOT in the response body
+	body := rr.Body.String()
+	if strings.Contains(body, "postgres") || strings.Contains(body, "s3cret") {
+		t.Errorf("response body leaks internal error details: %s", body)
 	}
 }
 

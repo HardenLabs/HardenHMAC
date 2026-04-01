@@ -77,7 +77,7 @@ func ValidateRequestAt(config *HmacConfig, req *RequestInfo, currentTimestamp in
 		}
 	}
 
-	canonicalString := BuildCanonicalString(
+	canonicalString, canonErr := BuildCanonicalString(
 		req.Method,
 		req.Path,
 		req.Body,
@@ -85,6 +85,12 @@ func ValidateRequestAt(config *HmacConfig, req *RequestInfo, currentTimestamp in
 		&config.SignedHeaders,
 		req.RequestHeaders,
 	)
+	if canonErr != nil {
+		return &HmacValidationError{
+			ErrorType: "invalid_request",
+			Message:   canonErr.Error(),
+		}
+	}
 
 	valid, signErr := Verify(config.SharedSecretBase64, canonicalString, req.SignatureHeader)
 	if signErr != nil {

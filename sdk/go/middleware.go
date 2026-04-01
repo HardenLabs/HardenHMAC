@@ -96,10 +96,11 @@ func resolveSecret(config *HmacConfig, secretResolver SecretResolver, r *http.Re
 	if secretResolver != nil {
 		resolved, err := secretResolver(r)
 		if err != nil {
+			config.effectiveLogger().Printf("secret resolver error: %v", err)
 			return "", &resolveError{
 				statusCode: http.StatusUnauthorized,
-				errorType:  "secret_resolver_error",
-				message:    "Secret resolver returned an error: " + err.Error(),
+				errorType:  "server_error",
+				message:    "Internal error resolving authentication.",
 			}
 		}
 		if resolved != "" {

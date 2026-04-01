@@ -15,7 +15,10 @@ func validConfig() *HmacConfig {
 func signForValidation(t *testing.T, method, path, body string, timestamp int64) string {
 	t.Helper()
 	cfg := NoneSignedHeadersConfig()
-	canonical := BuildCanonicalString(method, path, body, timestamp, &cfg, nil)
+	canonical, err := BuildCanonicalString(method, path, body, timestamp, &cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildCanonicalString failed: %v", err)
+	}
 	sig, err := Sign(testSecret, canonical)
 	if err != nil {
 		t.Fatalf("Sign failed: %v", err)

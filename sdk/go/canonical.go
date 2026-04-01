@@ -1,6 +1,7 @@
 package hardenhmac
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -12,7 +13,14 @@ import (
 //
 // The config parameter controls which headers are included. If nil, no headers are signed.
 // requestHeaders maps header names (original case) to values.
-func BuildCanonicalString(method, path, body string, timestamp int64, config *SignedHeadersConfig, requestHeaders map[string]string) string {
+func BuildCanonicalString(method, path, body string, timestamp int64, config *SignedHeadersConfig, requestHeaders map[string]string) (string, error) {
+	if strings.Contains(method, "\n") {
+		return "", errors.New("method must not contain newline characters")
+	}
+	if strings.Contains(path, "\n") {
+		return "", errors.New("path must not contain newline characters")
+	}
+
 	var cfg SignedHeadersConfig
 	if config != nil {
 		cfg = *config
@@ -26,7 +34,7 @@ func BuildCanonicalString(method, path, body string, timestamp int64, config *Si
 		signedHeadersStr,
 		body,
 		fmt.Sprintf("%d", timestamp),
-	}, "\n")
+	}, "\n"), nil
 }
 
 // BuildSignedHeaders builds the signed headers string and returns the sorted header names.
@@ -86,6 +94,11 @@ func selectHeaders(config SignedHeadersConfig, requestHeaders map[string]string)
 
 		if config.IncludeXHeaders && strings.HasPrefix(lowerName, XHeaderPrefix) &&
 			(!strings.HasPrefix(lowerName, HardenHeaderPrefix) || lowerName == clientIdHeaderLower) {
+			include = true
+		}
+
+		// X-Harden-Client-Id is always signed when present (identity claim must not be spoofable)
+		if lowerName == clientIdHeaderLower {
 			include = true
 		}
 

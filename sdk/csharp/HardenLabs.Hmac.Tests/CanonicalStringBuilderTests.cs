@@ -162,6 +162,44 @@ public class CanonicalStringBuilderTests
         result.Should().Be("GET\n/api\n\n\n1700000000");
     }
 
+    // ATK-1: Newline injection validation
+    [Fact]
+    public void Build_NewlineInMethod_ThrowsArgumentException()
+    {
+        var act = () => CanonicalStringBuilder.Build("GET\nX-Injected:evil", "/api/test", "", 1700000000);
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("method must not contain newline characters*");
+    }
+
+    [Fact]
+    public void Build_NewlineInPath_ThrowsArgumentException()
+    {
+        var act = () => CanonicalStringBuilder.Build("GET", "/api/test\nX-Injected:evil", "", 1700000000);
+        act.Should().Throw<ArgumentException>()
+            .WithMessage("path must not contain newline characters*");
+    }
+
+    // ATK-3: X-Harden-Client-Id always signed
+    [Fact]
+    public void Build_ClientIdSignedEvenWhenXHeadersDisabled()
+    {
+        var config = new SignedHeadersConfig
+        {
+            IncludeAuthorization = false,
+            IncludeXHeaders = false
+        };
+        var headers = new Dictionary<string, string>
+        {
+            ["X-Harden-Client-Id"] = "my-client",
+            ["X-Custom-Header"] = "should-not-be-signed"
+        };
+
+        var result = CanonicalStringBuilder.Build("GET", "/api/secure", "", 1700000050, config, headers);
+
+        result.Should().Contain("x-harden-client-id:my-client");
+        result.Should().NotContain("x-custom-header");
+    }
+
     [Fact]
     public void BuildSignedHeaders_ReturnsHeaderNames()
     {

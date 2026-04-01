@@ -29,6 +29,11 @@ def build_canonical_string(
     Returns:
         The canonical string per the v1.0 specification.
     """
+    if "\n" in method:
+        raise ValueError("method must not contain newline characters")
+    if "\n" in path:
+        raise ValueError("path must not contain newline characters")
+
     config = signed_headers_config or SignedHeadersConfig.none()
     headers = request_headers or {}
     signed_headers_string = _build_signed_headers_string(config, headers)
@@ -100,6 +105,10 @@ def _select_headers(
             not lower_name.startswith(HARDEN_HEADER_PREFIX)
             or lower_name == CLIENT_ID_HEADER_LOWER
         ):
+            include = True
+
+        # X-Harden-Client-Id is always signed when present (identity claim must not be spoofable)
+        if lower_name == CLIENT_ID_HEADER_LOWER:
             include = True
 
         if lower_name in additional_set:

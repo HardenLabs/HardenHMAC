@@ -153,6 +153,54 @@ describe("buildCanonicalString", () => {
     expect(result).toContain("authorization:Bearer tok");
   });
 
+  // ATK-1: Newline injection validation
+  it("throws on newline in method", () => {
+    expect(() =>
+      buildCanonicalString({
+        method: "GET\nX-Injected:evil",
+        path: "/api/test",
+        body: "",
+        timestamp: 1700000000,
+        signedHeadersConfig: noneConfig,
+      })
+    ).toThrow("method must not contain newline characters");
+  });
+
+  it("throws on newline in path", () => {
+    expect(() =>
+      buildCanonicalString({
+        method: "GET",
+        path: "/api/test\nX-Injected:evil",
+        body: "",
+        timestamp: 1700000000,
+        signedHeadersConfig: noneConfig,
+      })
+    ).toThrow("path must not contain newline characters");
+  });
+
+  // ATK-3: X-Harden-Client-Id always signed
+  it("signs X-Harden-Client-Id even when includeXHeaders is false", () => {
+    const config: SignedHeadersConfig = {
+      includeAuthorization: false,
+      includeXHeaders: false,
+      additionalHeaders: [],
+      excludeHeaders: [],
+    };
+    const result = buildCanonicalString({
+      method: "GET",
+      path: "/api/secure",
+      body: "",
+      timestamp: 1700000050,
+      signedHeadersConfig: config,
+      requestHeaders: {
+        "X-Harden-Client-Id": "my-client",
+        "X-Custom-Header": "should-not-be-signed",
+      },
+    });
+    expect(result).toContain("x-harden-client-id:my-client");
+    expect(result).not.toContain("x-custom-header");
+  });
+
   it("includes additional headers", () => {
     const config: SignedHeadersConfig = {
       includeAuthorization: false,

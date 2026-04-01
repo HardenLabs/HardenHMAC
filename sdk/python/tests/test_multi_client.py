@@ -23,11 +23,15 @@ PAYMENT_SECRET = "cGF5bWVudHMtc2VjcmV0LWtleS0zMi1ieXRlcyEhISE="
 
 
 def _sign_for_secret(
-    secret: str, method: str, path: str, body: str = ""
+    secret: str,
+    method: str,
+    path: str,
+    body: str = "",
+    request_headers: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     now = int(time.time())
     canonical = build_canonical_string(
-        method, path, body, now, SignedHeadersConfig.none()
+        method, path, body, now, SignedHeadersConfig.none(), request_headers
     )
     return sign(secret, canonical), str(now)
 
@@ -63,7 +67,10 @@ def multi_client(multi_client_app: FastAPI) -> TestClient:
 
 class TestMultiClientResolution:
     def test_known_client_valid_signature(self, multi_client: TestClient) -> None:
-        sig, ts = _sign_for_secret(ORDER_SECRET, "GET", "/api/test")
+        sig, ts = _sign_for_secret(
+            ORDER_SECRET, "GET", "/api/test",
+            request_headers={"X-Harden-Client-Id": "order-service"},
+        )
         response = multi_client.get(
             "/api/test",
             headers={
@@ -120,7 +127,10 @@ class TestMultiClientResolution:
     def test_payment_client_uses_payment_secret(
         self, multi_client: TestClient
     ) -> None:
-        sig, ts = _sign_for_secret(PAYMENT_SECRET, "GET", "/api/test")
+        sig, ts = _sign_for_secret(
+            PAYMENT_SECRET, "GET", "/api/test",
+            request_headers={"X-Harden-Client-Id": "payment-service"},
+        )
         response = multi_client.get(
             "/api/test",
             headers={
@@ -174,7 +184,13 @@ class TestResolverPriority:
         self, resolver_with_clients: TestClient
     ) -> None:
         resolver_secret = "cmVzb2x2ZXItc2VjcmV0LWtleS0zMi1ieXRlcyEhIQ=="
-        sig, ts = _sign_for_secret(resolver_secret, "GET", "/api/test")
+        sig, ts = _sign_for_secret(
+            resolver_secret, "GET", "/api/test",
+            request_headers={
+                "X-Harden-Client-Id": "order-service",
+                "X-Use-Resolver": "true",
+            },
+        )
         response = resolver_with_clients.get(
             "/api/test",
             headers={
@@ -189,7 +205,10 @@ class TestResolverPriority:
     def test_clients_used_when_resolver_returns_none(
         self, resolver_with_clients: TestClient
     ) -> None:
-        sig, ts = _sign_for_secret(ORDER_SECRET, "GET", "/api/test")
+        sig, ts = _sign_for_secret(
+            ORDER_SECRET, "GET", "/api/test",
+            request_headers={"X-Harden-Client-Id": "order-service"},
+        )
         response = resolver_with_clients.get(
             "/api/test",
             headers={

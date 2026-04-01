@@ -30,6 +30,13 @@ export function buildCanonicalString(params: CanonicalStringParams): string {
     requestHeaders,
   } = params;
 
+  if (method.includes("\n")) {
+    throw new Error("method must not contain newline characters");
+  }
+  if (path.includes("\n")) {
+    throw new Error("path must not contain newline characters");
+  }
+
   const config: SignedHeadersConfig = signedHeadersConfig ?? {
     includeAuthorization: false,
     includeXHeaders: false,
@@ -117,6 +124,11 @@ function selectHeaders(
       lowerName.startsWith(X_HEADER_PREFIX) &&
       (!lowerName.startsWith(HARDEN_HEADER_PREFIX) || lowerName === CLIENT_ID_HEADER_LOWER)
     ) {
+      include = true;
+    }
+
+    // X-Harden-Client-Id is always signed when present (identity claim must not be spoofable)
+    if (lowerName === CLIENT_ID_HEADER_LOWER) {
       include = true;
     }
 

@@ -13,6 +13,11 @@
     <PackageProjectUrl>https://github.com/HardenLabs/HardenHMAC</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HardenLabs/HardenHMAC</RepositoryUrl>
     <PackageTags>hmac authentication signing security</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
 
 </Project>

@@ -101,17 +101,21 @@ async def hello():
 ### Python — Client
 
 ```python
-import httpx
-from hardenlabs_hmac.client import sign_request_headers
-from hardenlabs_hmac.config import HmacConfig, SignedHeadersConfig
+from hardenlabs_hmac.client import HmacClientFactory
+from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig
 
 config = HmacConfig(
-    shared_secret_base64="your-base64-encoded-secret",
-    signed_headers=SignedHeadersConfig.default(),
+    targets={
+        "my-service": HmacTargetConfig(
+            base_url="https://api.example.com",
+            shared_secret="your-base64-encoded-secret",
+        ),
+    },
 )
 
-headers = sign_request_headers(config, "GET", "/api/hello")
-response = httpx.get("https://api.example.com/api/hello", headers=headers)
+factory = HmacClientFactory(config)
+with factory.create_sync_client("my-service") as client:
+    response = client.get("/api/hello")  # automatically signed
 ```
 
 ### TypeScript — Server (Express)
@@ -125,6 +129,7 @@ const config = createHmacConfig("your-base64-encoded-secret", {
 });
 
 const app = express();
+// IMPORTANT: Use express.text(), NOT express.json() — the middleware needs the raw body
 app.use(express.text({ type: "*/*" }));
 app.use(hardenHmacMiddleware(config));
 
@@ -138,12 +143,20 @@ app.listen(3000);
 ### TypeScript — Client
 
 ```typescript
-import { createHmacConfig, signRequestHeaders } from "@hardenlabs/hmac";
+import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
 
-const config = createHmacConfig("your-base64-encoded-secret");
+const config = createHmacConfig("your-base64-encoded-secret", {
+  targets: {
+    "my-service": {
+      baseUrl: "https://api.example.com",
+      sharedSecret: "your-base64-encoded-secret",
+    },
+  },
+});
 
-const headers = signRequestHeaders(config, "GET", "/api/hello");
-const response = await fetch("https://api.example.com/api/hello", { headers });
+const factory = createHmacClientFactory(config);
+const client = factory.createClient("my-service");
+const response = await client("/api/hello"); // automatically signed
 ```
 
 ### Go — Server (net/http)
@@ -351,6 +364,21 @@ config := &hardenhmac.HmacConfig{
 handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
 ```
 
+### Go -- Multi-Client Server
+
+```go
+config := &hardenhmac.HmacConfig{
+	SharedSecretBase64: "fallback-secret",
+	SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
+	Clients: map[string]hardenhmac.HmacClientIdentity{
+		"order-service":   {SharedSecret: "orders-base64-secret"},
+		"payment-service": {SharedSecret: "payments-base64-secret"},
+	},
+}
+
+handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
+```
+
 The client factory automatically adds the `X-Harden-Client-Id` header when creating clients via `CreateClient`/`createClient`.
 
 ## Environment Variable Configuration
@@ -377,7 +405,7 @@ HARDEN_HMAC_TARGETS__PAYMENT_SERVICE__SHARED_SECRET=payments-base64-secret
 
 **TypeScript**: `config = fromEnv()` — optionally loads `.env` via dotenv if installed as peer dependency.
 
-**Go**: Environment variable configuration is handled programmatically. Load `HARDEN_HMAC_SHARED_SECRET_BASE64` via `os.Getenv()` and construct `HmacConfig` directly.
+**Go**: `config, err := hardenhmac.FromEnv("HARDEN_HMAC_")` — parses targets, clients, and global settings from environment variables.
 
 ## Multi-Tenant Server (Secret Resolver)
 

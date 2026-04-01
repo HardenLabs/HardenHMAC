@@ -2,6 +2,8 @@
 // for the HardenHMAC cross-language signing protocol.
 package hardenhmac
 
+import "log"
+
 const (
 	// SignatureHeader is the HTTP header name for the HMAC signature.
 	SignatureHeader = "X-Harden-Signature"
@@ -79,7 +81,8 @@ type HmacConfig struct {
 	// SharedSecretBase64 is the global shared secret as a Base64-encoded string.
 	SharedSecretBase64 string
 	// TimestampToleranceSeconds is the global timestamp tolerance for validation.
-	// Zero value defaults to DefaultTimestampToleranceSeconds.
+	// A value of 0 uses the default (DefaultTimestampToleranceSeconds = 30 seconds).
+	// This matches the behavior of all other SDK implementations (C#, Python, TypeScript).
 	TimestampToleranceSeconds int
 	// SignedHeaders is the global signed headers configuration.
 	SignedHeaders SignedHeadersConfig
@@ -87,9 +90,21 @@ type HmacConfig struct {
 	Targets map[string]HmacTargetConfig
 	// Clients maps client IDs to their identities (server-side multi-client).
 	Clients map[string]HmacClientIdentity
+	// Logger is an optional logger for middleware diagnostic messages.
+	// If nil, log.Default() is used.
+	Logger *log.Logger
+}
+
+// effectiveLogger returns the configured logger, or log.Default() if nil.
+func (c *HmacConfig) effectiveLogger() *log.Logger {
+	if c.Logger != nil {
+		return c.Logger
+	}
+	return log.Default()
 }
 
 // effectiveTolerance returns the effective timestamp tolerance, defaulting if zero.
+// A value of 0 uses the default (30 seconds). This matches all other SDK implementations.
 func (c *HmacConfig) effectiveTolerance() int {
 	if c.TimestampToleranceSeconds > 0 {
 		return c.TimestampToleranceSeconds

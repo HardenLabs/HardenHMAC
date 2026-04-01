@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
+	"strings"
 )
 
 // SecretResolver is a function that resolves the shared secret for an incoming request.
@@ -72,7 +72,7 @@ func NewHmacMiddleware(config *HmacConfig, secretResolver SecretResolver) func(h
 					if hmacErr.IsMissing() || hmacErr.ErrorType == "invalid_timestamp" {
 						statusCode = http.StatusBadRequest
 					}
-					log.Printf("HMAC validation failed: %s - %s", hmacErr.ErrorType, hmacErr.Message)
+					config.effectiveLogger().Printf("HMAC validation failed: %s - %s", hmacErr.ErrorType, hmacErr.Message)
 					writeJSONError(w, statusCode, hmacErr.ErrorType, hmacErr.Message)
 					return
 				}
@@ -118,7 +118,7 @@ func resolveSecret(config *HmacConfig, secretResolver SecretResolver, r *http.Re
 		return "", &resolveError{
 			statusCode: http.StatusUnauthorized,
 			errorType:  "unknown_client",
-			message:    "Client ID '" + clientID + "' is not recognized.",
+			message:    "Unknown or unconfigured client.",
 		}
 	}
 
@@ -139,7 +139,7 @@ func flattenHeaders(headers http.Header) map[string]string {
 	flat := make(map[string]string, len(headers))
 	for name, values := range headers {
 		if len(values) > 0 {
-			flat[name] = values[len(values)-1]
+			flat[name] = strings.Join(values, ", ")
 		}
 	}
 	return flat

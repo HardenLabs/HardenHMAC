@@ -44,9 +44,13 @@ export function sign(
   const stripped = sharedSecretBase64.replace(/\s/g, "");
   validateBase64(stripped, "sharedSecretBase64");
   const keyBytes = Buffer.from(stripped, "base64");
-  const hmac = createHmac("sha256", keyBytes);
-  hmac.update(canonicalString, "utf8");
-  return hmac.digest("hex");
+  try {
+    const hmac = createHmac("sha256", keyBytes);
+    hmac.update(canonicalString, "utf8");
+    return hmac.digest("hex");
+  } finally {
+    keyBytes.fill(0);
+  }
 }
 
 /**

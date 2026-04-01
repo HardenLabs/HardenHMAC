@@ -404,6 +404,26 @@
       "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
       "expected_canonical_string": "GET\n/api/test\nx-harden-client-id:foo\nx-request-id:req-002\n\n1700000031",
       "expected_signature": "b8f34b8bfada90f9fc4d01afefe8e75ca4ce4263ba3ef163e2729ec657e9d226"
+    },
+    {
+      "id": "duplicate-header-comma-join",
+      "description": "Duplicate X-Custom headers are comma-joined per RFC 9110 Section 5.2",
+      "method": "POST",
+      "path": "/api/multi-header",
+      "body": "",
+      "timestamp": 1700000040,
+      "signed_headers_config": {
+        "include_authorization": false,
+        "include_x_headers": true,
+        "additional_headers": [],
+        "exclude_headers": []
+      },
+      "request_headers": {
+        "X-Custom": "alpha, beta"
+      },
+      "shared_secret_base64": "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=",
+      "expected_canonical_string": "POST\n/api/multi-header\nx-custom:alpha, beta\n\n1700000040",
+      "expected_signature": "a68641fb2e240952577b71f271e32b89d175ba6761deb3e73df63c9b2e0e4e41"
     }
   ]
 }

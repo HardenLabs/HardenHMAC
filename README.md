@@ -1,6 +1,6 @@
 # HardenHMAC
 
-Cross-language HMAC-SHA256 request signing with a defined canonical string format. Guaranteed identical signatures across C#, Python, and TypeScript through a shared test vector suite.
+Cross-language HMAC-SHA256 request signing with a defined canonical string format. Guaranteed identical signatures across C#, Python, TypeScript, and Go through a shared test vector suite.
 
 ## Installation
 
@@ -19,6 +19,11 @@ pip install "hardenlabs-hmac[fastapi]"  # for FastAPI middleware
 **TypeScript / Node.js**
 ```bash
 npm install @hardenlabs/hmac
+```
+
+**Go**
+```bash
+go get github.com/HardenLabs/hardenhmac-go
 ```
 
 ## Quick Start
@@ -141,6 +146,62 @@ const config = createHmacConfig("your-base64-encoded-secret");
 
 const headers = signRequestHeaders(config, "GET", "/api/hello");
 const response = await fetch("https://api.example.com/api/hello", { headers });
+```
+
+### Go — Server (net/http)
+
+```go
+package main
+
+import (
+	"net/http"
+	hardenhmac "github.com/HardenLabs/hardenhmac-go"
+)
+
+func main() {
+	config := &hardenhmac.HmacConfig{
+		SharedSecretBase64: "your-base64-encoded-secret",
+		SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"message":"Authenticated!"}`))
+	})
+
+	handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
+	http.ListenAndServe(":8080", handler)
+}
+```
+
+### Go — Client (http.Client)
+
+```go
+package main
+
+import (
+	"fmt"
+	"net/http"
+	hardenhmac "github.com/HardenLabs/hardenhmac-go"
+)
+
+func main() {
+	config := &hardenhmac.HmacConfig{
+		SharedSecretBase64: "your-base64-encoded-secret",
+		SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
+		Targets: map[string]hardenhmac.HmacTargetConfig{
+			"my-service": {
+				BaseURL:      "https://api.example.com",
+				SharedSecret: "your-base64-encoded-secret",
+			},
+		},
+	}
+
+	factory := hardenhmac.NewClientFactory(config)
+	client, _ := factory.CreateClient("my-service") // BaseURL + signing pre-configured
+	resp, _ := client.Get("/api/hello") // automatically signed
+	fmt.Println(resp.Status)
+}
 ```
 
 ## Multi-Target Configuration
@@ -277,6 +338,21 @@ const config = createHmacConfig("fallback-secret", {
 app.use(hardenHmacMiddleware(config));
 ```
 
+### Go -- Multi-Client Server
+
+```go
+config := &hardenhmac.HmacConfig{
+	SharedSecretBase64: "fallback-secret",
+	SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
+	Clients: map[string]hardenhmac.HmacClientIdentity{
+		"order-service":   {SharedSecret: "orders-base64-secret"},
+		"payment-service": {SharedSecret: "payments-base64-secret"},
+	},
+}
+
+handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
+```
+
 The client factory automatically adds the `X-Harden-Client-Id` header when creating clients via `CreateClient`/`createClient`.
 
 ## Environment Variable Configuration
@@ -302,6 +378,8 @@ HARDEN_HMAC_TARGETS__PAYMENT_SERVICE__SHARED_SECRET=payments-base64-secret
 **Python**: `config = HmacConfig.from_env()` — optionally loads `.env` via python-dotenv if installed.
 
 **TypeScript**: `config = fromEnv()` — optionally loads `.env` via dotenv if installed as peer dependency.
+
+**Go**: Environment variable configuration is handled programmatically. Load `HARDEN_HMAC_SHARED_SECRET_BASE64` via `os.Getenv()` and construct `HmacConfig` directly.
 
 ## Multi-Tenant Server (Secret Resolver)
 
@@ -332,7 +410,16 @@ app.use(hardenHmacMiddleware(config, (req) => {
 }));
 ```
 
-If the resolver returns `null`, the middleware falls back to `config.SharedSecretBase64`.
+```go
+// Go — resolve secret per-request
+resolver := func(r *http.Request) (string, error) {
+	clientID := r.Header.Get("X-Client-Id")
+	return lookupSecret(clientID)
+}
+handler := hardenhmac.NewHmacMiddleware(config, resolver)(mux)
+```
+
+If the resolver returns `null` (or empty string in Go), the middleware falls back to `config.SharedSecretBase64`.
 
 ## What HardenHMAC Does NOT Do
 
@@ -426,9 +513,19 @@ app.use(hardenHmacMiddleware(config));
 app.use(hardenHmacMiddleware(config, secretResolver));
 ```
 
+### net/http (Go)
+
+```go
+// Simple
+handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
+
+// Multi-tenant
+handler := hardenhmac.NewHmacMiddleware(config, secretResolver)(mux)
+```
+
 ## Cross-Language Compatibility Guarantee
 
-All three implementations (C#, Python, TypeScript) produce identical canonical strings and signatures for the same inputs. This is verified by a shared test vector suite at `tests/cross-language/test-vectors.json`.
+All four implementations (C#, Python, TypeScript, Go) produce identical canonical strings and signatures for the same inputs. This is verified by a shared test vector suite at `tests/cross-language/test-vectors.json`.
 
 The test vectors are authoritative. If an implementation produces a different result than the vectors specify, the implementation is wrong.
 
@@ -444,7 +541,7 @@ Server-side middleware rejects requests outside the tolerance window (default: 3
 
 Contributions are welcome. Please ensure:
 
-1. All three language implementations pass the cross-language test vectors
+1. All four language implementations pass the cross-language test vectors
 2. New features must include test vectors if they affect the canonical string or signature
 3. Run all tests before submitting a PR:
    ```bash
@@ -456,6 +553,9 @@ Contributions are welcome. Please ensure:
 
    # TypeScript
    cd sdk/typescript/packages/hmac && npm test
+
+   # Go
+   cd sdk/go && go test ./... -v
    ```
 
 ## License

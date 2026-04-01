@@ -17,6 +17,11 @@ func Sign(sharedSecretBase64 string, canonicalString string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer func() {
+		for i := range keyBytes {
+			keyBytes[i] = 0
+		}
+	}()
 
 	mac := hmac.New(sha256.New, keyBytes)
 	mac.Write([]byte(canonicalString))

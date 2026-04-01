@@ -15,6 +15,9 @@ def sign(shared_secret_base64: str, canonical_string: str) -> str:
     Returns:
         Lowercase hexadecimal signature string (64 characters).
     """
+    # Note: Python's bytes type is immutable and cannot be reliably zeroed after use.
+    # Using bytearray would not help because hmac.new() copies the key internally.
+    # Key material may persist in memory until garbage collected.
     key_bytes = base64.b64decode(shared_secret_base64, validate=True)
     data_bytes = canonical_string.encode("utf-8")
     digest = hmac_module.new(key_bytes, data_bytes, hashlib.sha256).hexdigest()

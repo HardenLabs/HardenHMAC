@@ -155,7 +155,7 @@ public sealed class HardenHmacMiddleware
             }
 
             // Client ID was provided but not found in Clients dictionary
-            return (null, ("unknown_client", $"Client '{clientId}' is not configured."));
+            return (null, ("unknown_client", "Unknown or unconfigured client."));
         }
 
         // 3. Fall back to config.SharedSecretBase64

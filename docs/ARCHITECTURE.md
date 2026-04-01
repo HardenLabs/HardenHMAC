@@ -2,7 +2,7 @@
 
 ## Overview
 
-HardenHMAC is a cross-language HMAC-SHA256 request signing library. It provides identical implementations in C#, Python, and TypeScript that produce the same signature for the same inputs, guaranteed by a shared test vector suite.
+HardenHMAC is a cross-language HMAC-SHA256 request signing library. It provides identical implementations in C#, Python, TypeScript, and Go that produce the same signature for the same inputs, guaranteed by a shared test vector suite.
 
 The library has no server component, no state, and no key management. It is a pure computation library: given a shared secret and request components, it produces a deterministic HMAC-SHA256 signature.
 
@@ -273,6 +273,15 @@ If both the resolver and config have no secret, the middleware returns 401 with 
 - **Key management**: Key generation, distribution, storage, and rotation are the implementer's responsibility.
 - **Key rotation**: No built-in mechanism. Coordinate key changes across services manually.
 - **Body confidentiality**: The request body is signed but not encrypted.
+
+### Body Size Limits
+
+The middleware reads the full request body into memory for signature validation. Applications should configure upstream body size limits to prevent memory exhaustion from oversized requests:
+
+- **ASP.NET Core**: `[RequestSizeLimit(1_048_576)]` attribute or `MaxRequestBodySize` in Kestrel options
+- **Express**: `express.text({ type: "*/*", limit: "1mb" })` or `express.raw({ limit: "1mb" })`
+- **FastAPI/Starlette**: Reverse proxy limit (e.g., nginx `client_max_body_size 1m`)
+- **Go net/http**: `http.MaxBytesReader(w, r.Body, 1<<20)` before the middleware
 
 ### Migration Path to HardenAPI
 

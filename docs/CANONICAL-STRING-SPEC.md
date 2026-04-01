@@ -194,7 +194,7 @@ Note the alphabetical sort order: authorization, content-type, x-custom-a, x-cus
 | Null/undefined body | Treat as empty string |
 | No signed headers match | SIGNED_HEADERS field is empty string |
 | Header value with internal whitespace | Preserved (only leading/trailing trimmed) |
-| Duplicate header names | Implementation-defined; typically last value wins |
+| Duplicate header names | Values are joined with `, ` (comma-space), matching HTTP semantics (RFC 9110 Section 5.2) |
 | Non-ASCII body | UTF-8 encoded for HMAC computation |
 | Path with fragment (`#`) | Fragments are not transmitted in HTTP requests and are not part of the canonical path |
 

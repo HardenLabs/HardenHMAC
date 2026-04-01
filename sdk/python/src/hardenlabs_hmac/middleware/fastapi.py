@@ -54,10 +54,14 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
         if request.url.query:
             path = f"{path}?{request.url.query}"
 
-        # Extract headers as dict
+        # Extract headers as dict, comma-joining duplicate header names
+        # per RFC 9110 Section 5.2
         request_headers: dict[str, str] = {}
         for name, value in request.headers.items():
-            request_headers[name] = value
+            if name in request_headers:
+                request_headers[name] = request_headers[name] + ", " + value
+            else:
+                request_headers[name] = value
 
         signature_header = request.headers.get(SIGNATURE_HEADER.lower())
         timestamp_header = request.headers.get(TIMESTAMP_HEADER.lower())
@@ -147,7 +151,7 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
                 if client_identity.shared_secret:
                     return client_identity.shared_secret, None
             # Client ID was provided but not found in clients dictionary
-            return None, ("unknown_client", f"Client '{client_id}' is not configured.")
+            return None, ("unknown_client", "Unknown or unconfigured client.")
 
         # 3. Fall back to config.shared_secret_base64
         return self.config.shared_secret_base64 or None, None

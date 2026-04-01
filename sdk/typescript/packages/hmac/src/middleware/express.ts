@@ -133,7 +133,7 @@ export function hardenHmacMiddleware(
         // Client ID was provided but not found
         res.status(401).json({
           error: "unknown_client",
-          message: `Client '${clientId}' is not configured.`,
+          message: "Unknown or unconfigured client.",
         });
         return;
       }

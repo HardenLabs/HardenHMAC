@@ -67,7 +67,7 @@ jobs:
       - name: Set version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          cd sdk/typescript/packages/hmac && npm version $VERSION --no-git-tag-version
+          cd sdk/typescript/packages/hmac && npm version $VERSION --no-git-tag-version --allow-same-version
       - name: Publish
         run: cd sdk/typescript/packages/hmac && npm publish --access public
         env:

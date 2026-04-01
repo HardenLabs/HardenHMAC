@@ -1,0 +1,54 @@
+# C# / .NET
+bin/
+obj/
+*.user
+*.suo
+*.userprefs
+*.nupkg
+*.snupkg
+*.log
+.vs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# TypeScript / Node
+node_modules/
+dist/
+.tsbuildinfo
+*.tsbuildinfo
+coverage/
+.turbo/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Integration test logs
+server.log
+
+# Environment
+.env
+.env.*

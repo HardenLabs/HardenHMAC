@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>HardenLabs.Hmac.AspNetCore</RootNamespace>
+    <PackageId>HardenLabs.Hmac.AspNetCore</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>HardenLabs</Authors>
+    <Description>ASP.NET Core middleware and HttpClient handler for HardenHMAC request signing.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/HardenLabs/HardenHMAC</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/HardenLabs/HardenHMAC</RepositoryUrl>
+    <PackageTags>hmac authentication signing security</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HardenLabs.Hmac\HardenLabs.Hmac.csproj" />
+  </ItemGroup>
+
+</Project>

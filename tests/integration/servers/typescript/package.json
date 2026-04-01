@@ -1,0 +1,19 @@
+{
+  "name": "hmac-integration-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx server.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@hardenlabs/hmac": "file:../../../../sdk/typescript/packages/hmac"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

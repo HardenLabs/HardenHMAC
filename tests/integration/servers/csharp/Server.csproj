@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>HardenHmac.IntegrationTests.Server</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../../sdk/csharp/HardenLabs.Hmac/HardenLabs.Hmac.csproj" />
+    <ProjectReference Include="../../../../sdk/csharp/HardenLabs.Hmac.AspNetCore/HardenLabs.Hmac.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

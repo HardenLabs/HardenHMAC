@@ -1,0 +1,51 @@
+{
+  "name": "@hardenlabs/hmac",
+  "version": "0.1.0",
+  "description": "Cross-language HMAC-SHA256 request signing with a defined canonical string format.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "license": "Apache-2.0",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "dotenv": "^17.3.1",
+    "express": "^4.18.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "peerDependencies": {
+    "axios": "^1.0.0",
+    "dotenv": "^16.0.0 || ^17.0.0",
+    "express": "^4.0.0 || ^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "axios": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    },
+    "dotenv": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HardenLabs/HardenHMAC"
+  }
+}

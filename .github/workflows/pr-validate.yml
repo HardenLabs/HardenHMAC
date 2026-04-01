@@ -1,0 +1,68 @@
+name: PR Validate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  csharp:
+    name: C# SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build
+        run: dotnet build sdk/csharp/HardenLabs.Hmac.sln
+      - name: Test
+        run: dotnet test sdk/csharp/HardenLabs.Hmac.sln --no-build --verbosity normal
+
+  python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -e "sdk/python[fastapi]"
+          pip install pytest httpx requests
+      - name: Test
+        run: cd sdk/python && python -m pytest tests/ -v
+
+  typescript:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: cd sdk/typescript/packages/hmac && npm ci
+      - name: Build
+        run: cd sdk/typescript/packages/hmac && npm run build
+      - name: Test
+        run: cd sdk/typescript/packages/hmac && npx vitest run
+
+  go:
+    name: Go SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Test
+        run: cd sdk/go && go test ./... -v
+
+  cross-language:
+    name: Cross-Language Vectors
+    needs: [csharp, python, typescript, go]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "All SDK tests passed — cross-language vectors verified in each SDK's test suite"

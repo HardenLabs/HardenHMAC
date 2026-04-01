@@ -1,0 +1,14 @@
+{
+  "clients": {
+    "csharp-client": { "sharedSecret": "Y3NoYXJwLWNsaWVudC1zZWNyZXQta2V5LTMyYnl0ZXM=" },
+    "python-client": { "sharedSecret": "cHl0aG9uLWNsaWVudC1zZWNyZXQta2V5LTMyYnl0ZXM=" },
+    "typescript-client": { "sharedSecret": "dHlwZXNjcmlwdC1jbGllbnQtc2VjcmV0LWtleS0zMmI=" },
+    "go-client": { "sharedSecret": "Z28tY2xpZW50LXNlY3JldC1rZXktMzItYnl0ZXMhISE=" }
+  },
+  "ports": {
+    "csharp": 9100,
+    "python": 9101,
+    "typescript": 9102,
+    "go": 9103
+  }
+}

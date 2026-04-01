@@ -41,6 +41,10 @@ jobs:
           pip install -e "sdk/python[fastapi]"
           pip install pytest httpx requests
           cd sdk/python && python -m pytest tests/ -v
+      - name: Set version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" sdk/python/pyproject.toml
       - name: Build
         run: cd sdk/python && python -m build
       - name: Publish

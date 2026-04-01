@@ -48,7 +48,16 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: Callable[[Request], Response]
     ) -> Response:
         body_bytes = await request.body()
-        body = body_bytes.decode("utf-8")
+        try:
+            body = body_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "invalid_body_encoding",
+                    "message": "Request body is not valid UTF-8.",
+                },
+            )
 
         path = request.url.path
         if request.url.query:

@@ -61,7 +61,10 @@ def load_config_from_env(
 
     # Parse global settings
     shared_secret = prefixed.get("SHARED_SECRET_BASE64", "")
-    timestamp_tolerance = int(prefixed.get("TIMESTAMP_TOLERANCE_SECONDS", "30"))
+    try:
+        timestamp_tolerance = int(prefixed.get("TIMESTAMP_TOLERANCE_SECONDS", "30"))
+    except ValueError:
+        timestamp_tolerance = 30
 
     # Parse signed headers
     include_auth = _parse_bool(
@@ -106,7 +109,10 @@ def load_config_from_env(
 
         target_tolerance: int | None = None
         if "TIMESTAMP_TOLERANCE_SECONDS" in fields:
-            target_tolerance = int(fields["TIMESTAMP_TOLERANCE_SECONDS"])
+            try:
+                target_tolerance = int(fields["TIMESTAMP_TOLERANCE_SECONDS"])
+            except ValueError:
+                target_tolerance = None
 
         target_configs[name] = HmacTargetConfig(
             base_url=fields.get("BASE_URL", ""),

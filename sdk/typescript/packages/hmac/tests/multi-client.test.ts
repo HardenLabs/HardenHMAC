@@ -191,7 +191,7 @@ describe("Client factory adds X-Harden-Client-Id", () => {
     const ordersFetch = factory.createClient("order-service");
     await ordersFetch("/api/orders");
 
-    expect(capturedHeaders[CLIENT_ID_HEADER]).toBe("order-service");
+    expect(capturedHeaders[CLIENT_ID_HEADER.toLowerCase()]).toBe("order-service");
   });
 });
 

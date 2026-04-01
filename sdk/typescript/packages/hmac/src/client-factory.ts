@@ -67,22 +67,22 @@ export function createHmacClientFactory(
           }
         }
 
-        // Collect existing headers, including the client ID
+        // Collect existing headers (lowercase keys), including the client ID
         const existingHeaders: Record<string, string> = {
-          [CLIENT_ID_HEADER]: targetName,
+          [CLIENT_ID_HEADER.toLowerCase()]: targetName,
         };
         if (init?.headers) {
           if (init.headers instanceof Headers) {
             init.headers.forEach((value, key) => {
-              existingHeaders[key] = value;
+              existingHeaders[key.toLowerCase()] = value;
             });
           } else if (Array.isArray(init.headers)) {
             for (const [key, value] of init.headers) {
-              existingHeaders[key!] = String(value);
+              existingHeaders[key!.toLowerCase()] = String(value);
             }
           } else {
             for (const [key, value] of Object.entries(init.headers)) {
-              existingHeaders[key] = String(value);
+              existingHeaders[key.toLowerCase()] = String(value);
             }
           }
         }

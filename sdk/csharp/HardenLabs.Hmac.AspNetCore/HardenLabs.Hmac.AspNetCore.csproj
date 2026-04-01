@@ -12,6 +12,7 @@
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/HardenLabs/HardenHMAC</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HardenLabs/HardenHMAC</RepositoryUrl>
+    <PackageTags>hmac authentication signing security</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

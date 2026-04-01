@@ -15,6 +15,16 @@ from hardenlabs_hmac.config import (
 )
 from hardenlabs_hmac.signing import sign
 
+try:
+    import httpx as _httpx
+
+    _BaseTransport = _httpx.BaseTransport
+    _AsyncBaseTransport = _httpx.AsyncBaseTransport
+except ImportError:  # httpx is an optional dependency
+    _httpx = None  # type: ignore[assignment]
+    _BaseTransport = object  # type: ignore[assignment,misc]
+    _AsyncBaseTransport = object  # type: ignore[assignment,misc]
+
 if TYPE_CHECKING:
     import httpx
 
@@ -63,7 +73,7 @@ def sign_request_headers(
     return result
 
 
-class HmacTransport:
+class HmacTransport(_BaseTransport):
     """httpx transport that automatically signs outgoing requests with HMAC.
 
     Used internally by HmacClientFactory. Wraps an existing transport.
@@ -104,7 +114,7 @@ class HmacTransport:
         return self._transport.handle_request(request)
 
 
-class HmacAsyncTransport:
+class HmacAsyncTransport(_AsyncBaseTransport):
     """httpx async transport that automatically signs outgoing requests with HMAC.
 
     Used internally by HmacClientFactory. Wraps an existing async transport.

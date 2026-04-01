@@ -4,14 +4,13 @@
  * Run: npx tsx client.ts
  */
 
-import { createHmacClientFactory } from "@hardenlabs/hmac";
-import type { HmacConfig } from "@hardenlabs/hmac";
+import { createHmacClientFactory, createHmacConfig } from "@hardenlabs/hmac";
 
 // Same secrets as the server — in production, load from environment/secrets manager
 const ordersSecret = Buffer.from("orders-secret-key-32-bytes!!!!!").toString("base64");
 const paymentsSecret = Buffer.from("payments-secret-key-32-bytes!!!").toString("base64");
 
-const config: HmacConfig = {
+const config = createHmacConfig(ordersSecret, {
   targets: {
     "order-service": {
       baseUrl: "http://localhost:3000",
@@ -23,7 +22,7 @@ const config: HmacConfig = {
       timestampToleranceSeconds: 60,
     },
   },
-};
+});
 
 const factory = createHmacClientFactory(config);
 

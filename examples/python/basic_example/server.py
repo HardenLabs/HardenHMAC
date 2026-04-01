@@ -57,10 +57,16 @@ async def resolve_tenant_secret(request: Request) -> Optional[str]:
     return None  # fall back to config.shared_secret_base64
 
 
+multi_tenant_config = HmacConfig(
+    shared_secret_base64=default_secret,  # fallback when no tenant matches
+    signed_headers=SignedHeadersConfig.default(),
+    timestamp_tolerance_seconds=30,
+)
+
 multi_tenant_app = FastAPI()
 multi_tenant_app.add_middleware(
     HardenHmacMiddleware,
-    config=config,
+    config=multi_tenant_config,
     secret_resolver=resolve_tenant_secret,
 )
 

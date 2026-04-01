@@ -28,12 +28,12 @@ public sealed class SignedHeadersConfig
     /// <summary>
     /// Default configuration: include Authorization and X-* headers.
     /// </summary>
-    public static SignedHeadersConfig Default => new();
+    public static readonly SignedHeadersConfig Default = new();
 
     /// <summary>
     /// Configuration that signs no headers.
     /// </summary>
-    public static SignedHeadersConfig None => new()
+    public static readonly SignedHeadersConfig None = new()
     {
         IncludeAuthorization = false,
         IncludeXHeaders = false

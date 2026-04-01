@@ -71,9 +71,7 @@ var config = new HmacConfig
     }
 };
 
-builder.Services.AddHardenHmac(config);
-
-// Use IHardenHmacClientFactory to create per-target clients
+var factory = new HardenHmacClientFactory(config);
 var client = factory.CreateClient("my-service"); // BaseAddress + signing pre-configured
 var response = await client.GetAsync("/api/hello"); // automatically signed
 ```

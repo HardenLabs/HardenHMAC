@@ -7,6 +7,11 @@ namespace HardenLabs.Hmac;
 /// </summary>
 public static class CanonicalStringBuilder
 {
+    // Pre-computed lowercase constants to avoid repeated ToLowerInvariant() in the hot loop
+    private static readonly string HardenHeaderPrefixLower = HardenHmacConstants.HardenHeaderPrefix.ToLowerInvariant();
+    private static readonly string ClientIdHeaderLower = HardenHmacConstants.ClientIdHeader.ToLowerInvariant();
+    private static readonly string XHeaderPrefixLower = HardenHmacConstants.XHeaderPrefix.ToLowerInvariant();
+
     /// <summary>
     /// Build a canonical string from request components.
     /// </summary>
@@ -89,8 +94,8 @@ public static class CanonicalStringBuilder
 
             // Always exclude X-Harden-* headers, EXCEPT X-Harden-Client-Id
             // (client identity is an identity claim, not signing metadata)
-            if (lowerName.StartsWith(HardenHmacConstants.HardenHeaderPrefix.ToLowerInvariant())
-                && !string.Equals(lowerName, HardenHmacConstants.ClientIdHeader.ToLowerInvariant(), StringComparison.Ordinal))
+            if (lowerName.StartsWith(HardenHeaderPrefixLower)
+                && !string.Equals(lowerName, ClientIdHeaderLower, StringComparison.Ordinal))
                 continue;
 
             // Check if this header should be included
@@ -103,9 +108,9 @@ public static class CanonicalStringBuilder
             }
 
             if (config.IncludeXHeaders &&
-                lowerName.StartsWith(HardenHmacConstants.XHeaderPrefix.ToLowerInvariant()) &&
-                (!lowerName.StartsWith(HardenHmacConstants.HardenHeaderPrefix.ToLowerInvariant()) ||
-                 string.Equals(lowerName, HardenHmacConstants.ClientIdHeader.ToLowerInvariant(), StringComparison.Ordinal)))
+                lowerName.StartsWith(XHeaderPrefixLower) &&
+                (!lowerName.StartsWith(HardenHeaderPrefixLower) ||
+                 string.Equals(lowerName, ClientIdHeaderLower, StringComparison.Ordinal)))
             {
                 include = true;
             }

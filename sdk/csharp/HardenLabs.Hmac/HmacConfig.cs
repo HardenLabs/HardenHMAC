@@ -35,7 +35,7 @@ public sealed class HmacConfig
     /// Configuration for which headers to include in the signature.
     /// Individual targets can override this.
     /// </summary>
-    public SignedHeadersConfig SignedHeaders { get; set; } = SignedHeadersConfig.Default;
+    public SignedHeadersConfig SignedHeaders { get; set; } = new();
 
     /// <summary>
     /// Timestamp tolerance in seconds for server-side validation. Default: 30.

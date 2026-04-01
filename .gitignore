@@ -46,6 +46,9 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Integration test logs
+server.log
+
 # Environment
 .env
 .env.*

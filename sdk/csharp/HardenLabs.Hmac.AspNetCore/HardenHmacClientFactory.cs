@@ -14,6 +14,13 @@ public sealed class HardenHmacClientFactory : IHardenHmacClientFactory
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Each call allocates a new <see cref="HttpClient"/> and its underlying
+    /// <see cref="HttpMessageHandler"/>. To avoid socket exhaustion, callers
+    /// should store the returned client as a singleton per target and reuse it
+    /// for the lifetime of the application rather than creating a new client
+    /// per request.
+    /// </remarks>
     public HttpClient CreateClient(string targetName)
     {
         ArgumentNullException.ThrowIfNull(targetName);

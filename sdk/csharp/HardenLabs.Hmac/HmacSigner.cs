@@ -47,8 +47,14 @@ public static class HmacSigner
 
         // Sign already zeroes key bytes internally, no additional zeroing needed here.
         var expected = Sign(sharedSecretBase64, canonicalString);
-        return CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(expected),
-            Encoding.UTF8.GetBytes(signature));
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        var signatureBytes = Encoding.UTF8.GetBytes(signature);
+
+        if (expectedBytes.Length != signatureBytes.Length)
+        {
+            return false;
+        }
+
+        return CryptographicOperations.FixedTimeEquals(expectedBytes, signatureBytes);
     }
 }

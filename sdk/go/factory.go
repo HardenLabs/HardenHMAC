@@ -67,7 +67,7 @@ func (c *Client) Post(path string, contentType string, body string) (*http.Respo
 }
 
 // Do sends an HTTP request using the underlying signed client.
-// If the request URL is relative (starts with /), it is resolved against BaseURL.
+// The request URL must be absolute. Use NewRequest to build a request with BaseURL prepended.
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return c.Client.Do(req)
 }

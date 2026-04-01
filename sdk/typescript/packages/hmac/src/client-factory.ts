@@ -1,39 +1,45 @@
 import type { HmacConfig } from "./config.js";
 import { CLIENT_ID_HEADER, configForTarget } from "./config.js";
+import type {
+  HmacClient,
+  HmacResponse,
+  HttpAdapter,
+  RequestOptions,
+  HmacClientFactoryOptions,
+} from "./http-client.js";
+import { FetchAdapter, AxiosAdapter } from "./http-client.js";
 import { signRequestHeaders } from "./middleware/fetch.js";
 
-/** Factory for creating pre-configured fetch wrappers per named target. */
+/** Factory for creating pre-configured HMAC-signing HTTP clients per named target. */
 export interface HmacClientFactory {
   /**
-   * Create a fetch wrapper for the named target.
-   * The wrapper prepends the target's base URL and signs all requests.
+   * Create an HTTP client for the named target.
+   * The client prepends the target's base URL and signs all requests.
    *
    * @param targetName - The target name as defined in config.targets.
-   * @returns A fetch-like function that auto-signs requests.
+   * @returns An HmacClient that auto-signs requests.
    * @throws {Error} If the target name is not found.
    */
-  createClient(
-    targetName: string
-  ): (path: string, init?: RequestInit) => Promise<Response>;
+  createClient(targetName: string): HmacClient;
 }
 
 /**
  * Create an HmacClientFactory from the given config.
  *
  * @param config - HMAC configuration with targets.
- * @param fetchFn - The fetch function to wrap. Defaults to globalThis.fetch.
- * @returns Factory that creates per-target signed fetch wrappers.
+ * @param options - Optional adapter configuration (fetch function or axios instance).
+ * @returns Factory that creates per-target signed HTTP clients.
  */
 export function createHmacClientFactory(
   config: HmacConfig,
-  fetchFn?: typeof globalThis.fetch
+  options?: HmacClientFactoryOptions
 ): HmacClientFactory {
-  const baseFetch = fetchFn ?? globalThis.fetch;
+  const adapter: HttpAdapter = options?.axios
+    ? new AxiosAdapter(options.axios)
+    : new FetchAdapter(options?.fetchFn);
 
   return {
-    createClient(
-      targetName: string
-    ): (path: string, init?: RequestInit) => Promise<Response> {
+    createClient(targetName: string): HmacClient {
       const target = config.targets?.[targetName];
       if (!target) {
         const available = config.targets
@@ -47,51 +53,27 @@ export function createHmacClientFactory(
       const targetConfig = configForTarget(config, targetName);
       const baseUrl = target.baseUrl.replace(/\/+$/, "");
 
-      return async (
+      function signedRequest(
+        method: string,
         path: string,
-        init?: RequestInit
-      ): Promise<Response> => {
-        const fullUrl = `${baseUrl}${path}`;
-        const method = init?.method ?? "GET";
-
-        // Only string bodies are supported for HMAC signing.
-        let body = "";
-        if (init?.body !== undefined && init?.body !== null) {
-          if (typeof init.body === "string") {
-            body = init.body;
-          } else {
-            throw new Error(
-              "HardenHMAC: Only string request bodies are supported for HMAC signing. " +
-              "Convert your body to a string before passing it to fetch."
-            );
-          }
-        }
-
-        // Collect existing headers (lowercase keys), including the client ID
+        body?: string,
+        opts?: RequestOptions
+      ): Promise<HmacResponse> {
         const existingHeaders: Record<string, string> = {
           [CLIENT_ID_HEADER.toLowerCase()]: targetName,
+          ...Object.fromEntries(
+            Object.entries(opts?.headers ?? {}).map(([k, v]) => [
+              k.toLowerCase(),
+              v,
+            ])
+          ),
         };
-        if (init?.headers) {
-          if (init.headers instanceof Headers) {
-            init.headers.forEach((value, key) => {
-              existingHeaders[key.toLowerCase()] = value;
-            });
-          } else if (Array.isArray(init.headers)) {
-            for (const [key, value] of init.headers) {
-              existingHeaders[key!.toLowerCase()] = String(value);
-            }
-          } else {
-            for (const [key, value] of Object.entries(init.headers)) {
-              existingHeaders[key.toLowerCase()] = String(value);
-            }
-          }
-        }
 
         const sigHeaders = signRequestHeaders(
           targetConfig,
           method,
           path,
-          body,
+          body ?? "",
           existingHeaders
         );
 
@@ -100,10 +82,18 @@ export function createHmacClientFactory(
           ...sigHeaders,
         };
 
-        return baseFetch(fullUrl, {
-          ...init,
-          headers: mergedHeaders,
-        });
+        const fullUrl = `${baseUrl}${path}`;
+        return adapter.request(fullUrl, method, body, mergedHeaders);
+      }
+
+      return {
+        get: (path, opts) => signedRequest("GET", path, undefined, opts),
+        post: (path, body, opts) => signedRequest("POST", path, body, opts),
+        put: (path, body, opts) => signedRequest("PUT", path, body, opts),
+        patch: (path, body, opts) => signedRequest("PATCH", path, body, opts),
+        delete: (path, opts) => signedRequest("DELETE", path, undefined, opts),
+        request: (method, path, body, opts) =>
+          signedRequest(method.toUpperCase(), path, body, opts),
       };
     },
   };

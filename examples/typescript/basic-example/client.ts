@@ -27,20 +27,20 @@ const config = createHmacConfig(ordersSecret, {
 const factory = createHmacClientFactory(config);
 
 async function main(): Promise<void> {
-  // Each fetch wrapper has base URL and signing pre-configured from the target
-  const ordersFetch = factory.createClient("order-service");
-  const paymentsFetch = factory.createClient("payment-service");
+  // Each client has base URL and signing pre-configured from the target
+  const ordersClient = factory.createClient("order-service");
+  const paymentsClient = factory.createClient("payment-service");
 
   // GET — base URL is prepended automatically
-  const getResp = await ordersFetch("/api/hello");
+  const getResp = await ordersClient.get("/api/hello");
   console.log(`GET order-service /api/hello: ${getResp.status} ${JSON.stringify(await getResp.json())}`);
 
   // POST with body
-  const postResp = await paymentsFetch("/api/echo", {
-    method: "POST",
-    body: JSON.stringify({ amount: 100 }),
-    headers: { "Content-Type": "application/json" },
-  });
+  const postResp = await paymentsClient.post(
+    "/api/echo",
+    JSON.stringify({ amount: 100 }),
+    { headers: { "Content-Type": "application/json" } }
+  );
   console.log(`POST payment-service /api/echo: ${postResp.status} ${JSON.stringify(await postResp.json())}`);
 }
 

@@ -40,3 +40,14 @@ export {
   createHmacClientFactory,
   type HmacClientFactory,
 } from "./client-factory.js";
+
+export {
+  FetchAdapter,
+  AxiosAdapter,
+  type HmacClient,
+  type HmacResponse,
+  type RequestOptions,
+  type HttpAdapter,
+  type AxiosInstance,
+  type HmacClientFactoryOptions,
+} from "./http-client.js";

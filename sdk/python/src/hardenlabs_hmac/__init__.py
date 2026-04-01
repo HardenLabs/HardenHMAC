@@ -1,7 +1,12 @@
 """HardenHMAC - Cross-language HMAC-SHA256 request signing."""
 
 from hardenlabs_hmac.canonical import build_canonical_string
-from hardenlabs_hmac.client import HmacClientFactory, sign_request_headers
+from hardenlabs_hmac.client import (
+    HmacAuth,
+    HmacClientFactory,
+    HmacRequestsClient,
+    sign_request_headers,
+)
 from hardenlabs_hmac.config import (
     HmacClientIdentity,
     HmacConfig,
@@ -18,9 +23,11 @@ __all__ = [
     "sign_request_headers",
     "verify",
     "validate_request",
+    "HmacAuth",
     "HmacClientFactory",
     "HmacClientIdentity",
     "HmacConfig",
+    "HmacRequestsClient",
     "HmacTargetConfig",
     "SignedHeadersConfig",
     "HmacValidationError",

@@ -118,6 +118,26 @@ with factory.create_sync_client("my-service") as client:
     response = client.get("/api/hello")  # automatically signed
 ```
 
+### Python — Client (requests)
+
+```python
+from hardenlabs_hmac.client import HmacClientFactory
+from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig
+
+config = HmacConfig(
+    targets={
+        "my-service": HmacTargetConfig(
+            base_url="https://api.example.com",
+            shared_secret="your-base64-encoded-secret",
+        ),
+    },
+)
+
+factory = HmacClientFactory(config)
+with factory.create_requests_session("my-service") as client:
+    response = client.get("/api/hello")  # automatically signed
+```
+
 ### TypeScript — Server (Express)
 
 ```typescript
@@ -140,7 +160,7 @@ app.get("/api/hello", (_req, res) => {
 app.listen(3000);
 ```
 
-### TypeScript — Client
+### TypeScript — Client (fetch)
 
 ```typescript
 import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
@@ -156,7 +176,31 @@ const config = createHmacConfig("your-base64-encoded-secret", {
 
 const factory = createHmacClientFactory(config);
 const client = factory.createClient("my-service");
-const response = await client("/api/hello"); // automatically signed
+const response = await client.get("/api/hello"); // automatically signed
+const data = await response.json();
+```
+
+### TypeScript — Client (axios)
+
+```typescript
+import axios from "axios";
+import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
+
+const config = createHmacConfig("your-base64-encoded-secret", {
+  targets: {
+    "my-service": {
+      baseUrl: "https://api.example.com",
+      sharedSecret: "your-base64-encoded-secret",
+    },
+  },
+});
+
+const factory = createHmacClientFactory(config, { axios: axios.create() });
+const client = factory.createClient("my-service");
+const response = await client.post("/api/data", JSON.stringify({ key: "value" }), {
+  headers: { "Content-Type": "application/json" },
+});
+const data = await response.json();
 ```
 
 ### Go — Server (net/http)
@@ -292,7 +336,7 @@ const config = createHmacConfig("default-secret", {
 
 const factory = createHmacClientFactory(config);
 const ordersClient = factory.createClient("order-service");
-const response = await ordersClient("/api/orders"); // auto-signed, correct base URL
+const response = await ordersClient.get("/api/orders"); // auto-signed, correct base URL
 ```
 
 ## Multi-Client Server Configuration

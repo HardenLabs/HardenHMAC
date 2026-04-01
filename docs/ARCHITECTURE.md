@@ -182,7 +182,7 @@ Per-target settings override global defaults:
 Each language provides a factory that creates pre-configured HTTP clients:
 - **C#**: `IHardenHmacClientFactory.CreateClient(targetName)` returns `HttpClient` with `BaseAddress` and signing handler
 - **Python**: `HmacClientFactory.create_client(targetName)` returns `httpx.AsyncClient` (or `create_sync_client` for sync)
-- **TypeScript**: `createHmacClientFactory(config).createClient(targetName)` returns a signed fetch wrapper
+- **TypeScript**: `createHmacClientFactory(config).createClient(targetName)` returns an `HmacClient` with `.get()`, `.post()`, `.put()`, `.patch()`, `.delete()`, and `.request()` methods. Supports both `fetch` and `axios` adapters via the options parameter.
 
 ## Multi-Client Server Configuration
 

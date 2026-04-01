@@ -187,9 +187,9 @@ describe("Client factory adds X-Harden-Client-Id", () => {
       },
     };
 
-    const factory = createHmacClientFactory(clientConfig, mockFetch);
-    const ordersFetch = factory.createClient("order-service");
-    await ordersFetch("/api/orders");
+    const factory = createHmacClientFactory(clientConfig, { fetchFn: mockFetch });
+    const ordersClient = factory.createClient("order-service");
+    await ordersClient.get("/api/orders");
 
     expect(capturedHeaders[CLIENT_ID_HEADER.toLowerCase()]).toBe("order-service");
   });

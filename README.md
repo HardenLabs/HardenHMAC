@@ -547,6 +547,28 @@ Headers are sorted alphabetically by lowercase name, values are trimmed, and the
 | `X-Harden-Signed-Headers` | Semicolon-separated signed header names (only if headers are signed) | No |
 | `X-Harden-Client-Id` | Client identity for multi-client server resolution | **Yes** |
 
+## Network Requirements
+
+HardenHMAC relies on custom HTTP headers (`X-Harden-*`) to transmit signatures, timestamps, and client identity. **These headers must be allowed through all network intermediaries** between the client and server.
+
+Components that commonly strip or block custom headers:
+- **WAFs** (AWS WAF, Cloudflare, Azure Front Door) — may strip unknown `X-*` headers
+- **CDNs** (CloudFront, Fastly, Akamai) — may not forward custom request headers by default
+- **Reverse proxies** (nginx, HAProxy, Envoy) — may require explicit `proxy_pass_header` or `proxy_set_header` configuration
+- **API gateways** (AWS API Gateway, Kong, Apigee) — may filter headers not in an allowlist
+- **Load balancers** (ALB, NLB) — generally pass headers through, but verify
+
+**Required headers to allowlist:**
+
+| Header | Direction | Required |
+|--------|-----------|----------|
+| `X-Harden-Signature` | Client → Server | Always |
+| `X-Harden-Timestamp` | Client → Server | Always |
+| `X-Harden-Client-Id` | Client → Server | When using multi-client server config |
+| `X-Harden-Signed-Headers` | Client → Server | When signing headers beyond defaults |
+
+If HMAC validation fails with `missing_signature` or `missing_timestamp` errors despite the client sending correct headers, check whether a network intermediary is stripping them.
+
 ## Framework Middleware
 
 ### ASP.NET Core

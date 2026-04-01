@@ -274,6 +274,23 @@ If both the resolver and config have no secret, the middleware returns 401 with 
 - **Key rotation**: No built-in mechanism. Coordinate key changes across services manually.
 - **Body confidentiality**: The request body is signed but not encrypted.
 
+### Network Header Requirements
+
+HardenHMAC transmits authentication data via custom `X-Harden-*` HTTP headers. All network intermediaries between client and server must forward these headers:
+
+- `X-Harden-Signature` (required)
+- `X-Harden-Timestamp` (required)
+- `X-Harden-Client-Id` (required for multi-client servers)
+- `X-Harden-Signed-Headers` (required when signed headers are configured)
+
+Common components that may strip custom headers: WAFs, CDNs, reverse proxies, API gateways, and load balancers. If validation fails with `missing_signature` or `missing_timestamp` despite correct client-side signing, a network intermediary is likely stripping the headers.
+
+**Configuration examples:**
+- **nginx**: `proxy_pass_header X-Harden-Signature;` (or pass all with `proxy_pass_request_headers on;`)
+- **AWS CloudFront**: Add `X-Harden-*` headers to the origin request policy allowlist
+- **AWS API Gateway**: Custom headers are forwarded by default in HTTP API v2; REST API may require explicit mapping
+- **Envoy**: Headers are forwarded by default unless explicitly removed by route config
+
 ### Body Size Limits
 
 The middleware reads the full request body into memory for signature validation. Applications should configure upstream body size limits to prevent memory exhaustion from oversized requests:

@@ -45,7 +45,7 @@ class HardenHmacMiddleware(BaseHTTPMiddleware):
         self.secret_resolver = secret_resolver
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         body_bytes = await request.body()
         try:

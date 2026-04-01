@@ -29,6 +29,17 @@ function parseBool(value: string | undefined, defaultValue: boolean): boolean {
 }
 
 /**
+ * Parse an integer from a string, returning the default if the value is
+ * undefined, empty, or not a valid integer.
+ */
+function safeParseInt(value: string | undefined, defaultValue: number): number {
+  if (value === undefined || value === "") return defaultValue;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed)) return defaultValue;
+  return parsed;
+}
+
+/**
  * Load HmacConfig from environment variables.
  *
  * Supports the following variables (prefix default: "HARDEN_HMAC_"):
@@ -46,17 +57,6 @@ function parseBool(value: string | undefined, defaultValue: boolean): boolean {
  * @param env - Optional env object for testing. Defaults to process.env.
  * @returns Parsed HmacConfig.
  */
-/**
- * Parse an integer from a string, returning the default if the value is
- * undefined, empty, or not a valid integer.
- */
-function safeParseInt(value: string | undefined, defaultValue: number): number {
-  if (value === undefined || value === "") return defaultValue;
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed)) return defaultValue;
-  return parsed;
-}
-
 export async function fromEnv(
   prefix: string = "HARDEN_HMAC_",
   env?: Record<string, string | undefined>

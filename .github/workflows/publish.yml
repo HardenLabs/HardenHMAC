@@ -1,0 +1,74 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  nuget:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build
+        run: dotnet build sdk/csharp/HardenLabs.Hmac.sln -c Release
+      - name: Test
+        run: dotnet test sdk/csharp/HardenLabs.Hmac.sln -c Release --no-build
+      - name: Pack
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          dotnet pack sdk/csharp/HardenLabs.Hmac/HardenLabs.Hmac.csproj -c Release --no-build -p:PackageVersion=$VERSION -o ./artifacts
+          dotnet pack sdk/csharp/HardenLabs.Hmac.AspNetCore/HardenLabs.Hmac.AspNetCore.csproj -c Release --no-build -p:PackageVersion=$VERSION -o ./artifacts
+      - name: Push to NuGet
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tools
+        run: pip install build twine
+      - name: Test
+        run: |
+          pip install -e "sdk/python[fastapi]"
+          pip install pytest httpx requests
+          cd sdk/python && python -m pytest tests/ -v
+      - name: Build
+        run: cd sdk/python && python -m build
+      - name: Publish
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: cd sdk/python && twine upload dist/*
+
+  npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+      - name: Install dependencies
+        run: cd sdk/typescript/packages/hmac && npm ci
+      - name: Build
+        run: cd sdk/typescript/packages/hmac && npm run build
+      - name: Test
+        run: cd sdk/typescript/packages/hmac && npx vitest run
+      - name: Set version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd sdk/typescript/packages/hmac && npm version $VERSION --no-git-tag-version
+      - name: Publish
+        run: cd sdk/typescript/packages/hmac && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

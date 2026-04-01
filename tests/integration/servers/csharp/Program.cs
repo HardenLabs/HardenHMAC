@@ -56,9 +56,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHardenHmac(hmacConfig);
 
 var app = builder.Build();
+app.UseRouting();
 app.UseHardenHmac();
 
-app.MapGet("/api/hello", () => Results.Json(new { message = "hello from csharp" }));
+// Protected endpoints — require [HmacValidate]
+app.MapGet("/api/hello", () => Results.Json(new { message = "hello from csharp" }))
+    .WithMetadata(new HmacValidateAttribute());
 
 app.MapPost("/api/echo", async (HttpRequest request) =>
 {
@@ -76,6 +79,9 @@ app.MapPost("/api/echo", async (HttpRequest request) =>
     }
 
     return Results.Json(new { echo = parsed, language = "csharp" });
-});
+}).WithMetadata(new HmacValidateAttribute());
+
+// Unprotected endpoint — no attribute, no HMAC required
+app.MapGet("/health", () => Results.Json(new { status = "healthy", language = "csharp" }));
 
 app.Run($"http://0.0.0.0:{port}");

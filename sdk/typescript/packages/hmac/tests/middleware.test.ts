@@ -4,7 +4,7 @@ import type { Server } from "node:http";
 import { buildCanonicalString } from "../src/canonical.js";
 import type { HmacConfig, SignedHeadersConfig } from "../src/config.js";
 import { sign } from "../src/signing.js";
-import { hardenHmacMiddleware } from "../src/middleware/express.js";
+import { hardenHmacMiddleware, createHmacValidateMiddleware } from "../src/middleware/express.js";
 
 const TEST_SECRET =
   "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=";
@@ -190,5 +190,101 @@ describe("Express hardenHmacMiddleware", () => {
         jsonServer.close((err) => (err ? reject(err) : resolve()));
       });
     }
+  });
+});
+
+describe("createHmacValidateMiddleware (per-route)", () => {
+  let perRouteServer: Server;
+  let perRouteBaseUrl: string;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.text({ type: "*/*" }));
+
+    const hmacValidate = createHmacValidateMiddleware(config);
+
+    // Protected route — HMAC middleware applied
+    app.post("/api/test", hmacValidate, (_req, res) => {
+      res.json({ message: "ok" });
+    });
+
+    // Unprotected route — no HMAC middleware
+    app.get("/health", (_req, res) => {
+      res.json({ status: "healthy" });
+    });
+
+    await new Promise<void>((resolve) => {
+      perRouteServer = app.listen(0, () => {
+        const addr = perRouteServer.address();
+        if (addr && typeof addr !== "string") {
+          perRouteBaseUrl = `http://127.0.0.1:${addr.port}`;
+        }
+        resolve();
+      });
+    });
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => {
+      perRouteServer.close((err) => (err ? reject(err) : resolve()));
+    });
+  });
+
+  it("passes a valid signature on a protected route", async () => {
+    const body = '{"item":"widget"}';
+    const ts = Math.floor(Date.now() / 1000);
+    const sig = signReq("POST", "/api/test", body, ts);
+
+    const response = await fetch(`${perRouteBaseUrl}/api/test`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain",
+        "X-Harden-Signature": sig,
+        "X-Harden-Timestamp": String(ts),
+      },
+      body,
+    });
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { message: string };
+    expect(json.message).toBe("ok");
+  });
+
+  it("rejects missing signature on a protected route with 400", async () => {
+    const response = await fetch(`${perRouteBaseUrl}/api/test`, {
+      method: "POST",
+      headers: {
+        "X-Harden-Timestamp": String(Math.floor(Date.now() / 1000)),
+      },
+      body: "test",
+    });
+
+    expect(response.status).toBe(400);
+    const json = (await response.json()) as { error: string };
+    expect(json.error).toBe("missing_signature");
+  });
+
+  it("rejects invalid signature on a protected route with 401", async () => {
+    const ts = Math.floor(Date.now() / 1000);
+    const response = await fetch(`${perRouteBaseUrl}/api/test`, {
+      method: "POST",
+      headers: {
+        "X-Harden-Signature": "0".repeat(64),
+        "X-Harden-Timestamp": String(ts),
+      },
+      body: "test",
+    });
+
+    expect(response.status).toBe(401);
+    const json = (await response.json()) as { error: string };
+    expect(json.error).toBe("signature_invalid");
+  });
+
+  it("allows unprotected route without HMAC headers", async () => {
+    const response = await fetch(`${perRouteBaseUrl}/health`);
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { status: string };
+    expect(json.status).toBe("healthy");
   });
 });

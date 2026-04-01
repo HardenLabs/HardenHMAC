@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction, RequestHandler } from "express";
 import type { HmacConfig } from "../config.js";
 import { CLIENT_ID_HEADER, SIGNATURE_HEADER, TIMESTAMP_HEADER } from "../config.js";
 import { HmacValidationError } from "../errors.js";
@@ -13,21 +13,10 @@ export type SecretResolver = (
 ) => string | null | undefined | Promise<string | null | undefined>;
 
 /**
- * Create an Express middleware that validates incoming HMAC-signed requests.
- *
- * IMPORTANT: This middleware requires the raw request body as a string or Buffer.
- * Use `express.text({ type: "*\/*" })` or `express.raw()` upstream — NOT `express.json()`.
- *
- * If `express.json()` runs first, `req.body` will be a parsed object and
- * `JSON.stringify(req.body)` may produce different output than the original raw body,
- * causing signature verification to fail. In that case this middleware returns 400
- * with a descriptive error rather than silently producing incorrect results.
- *
- * @param config - HMAC configuration with shared secret and tolerance.
- * @param secretResolver - Optional callback to resolve the secret per-request (e.g., for multi-tenant).
- * @returns Express middleware function.
+ * Internal: builds the HMAC validation middleware handler shared by both
+ * hardenHmacMiddleware (global) and createHmacValidateMiddleware (per-route).
  */
-export function hardenHmacMiddleware(
+function buildHmacHandler(
   config: HmacConfig,
   secretResolver?: SecretResolver
 ): (req: Request, res: Response, next: NextFunction) => void {
@@ -164,4 +153,62 @@ export function hardenHmacMiddleware(
       resolveAndValidate(null);
     }
   };
+}
+
+/**
+ * Create an Express middleware that validates incoming HMAC-signed requests.
+ *
+ * IMPORTANT: This middleware requires the raw request body as a string or Buffer.
+ * Use `express.text({ type: "*\/*" })` or `express.raw()` upstream — NOT `express.json()`.
+ *
+ * If `express.json()` runs first, `req.body` will be a parsed object and
+ * `JSON.stringify(req.body)` may produce different output than the original raw body,
+ * causing signature verification to fail. In that case this middleware returns 400
+ * with a descriptive error rather than silently producing incorrect results.
+ *
+ * @param config - HMAC configuration with shared secret and tolerance.
+ * @param secretResolver - Optional callback to resolve the secret per-request (e.g., for multi-tenant).
+ * @returns Express middleware function.
+ */
+export function hardenHmacMiddleware(
+  config: HmacConfig,
+  secretResolver?: SecretResolver
+): (req: Request, res: Response, next: NextFunction) => void {
+  return buildHmacHandler(config, secretResolver);
+}
+
+/**
+ * Creates per-route HMAC validation middleware.
+ * Apply to individual routes that require HMAC authentication.
+ *
+ * This has the same behavior as {@link hardenHmacMiddleware} but is intended
+ * to be applied per-route rather than globally via `app.use()`.
+ *
+ * IMPORTANT: This middleware requires the raw request body as a string or Buffer.
+ * Use `express.text({ type: "*\/*" })` or `express.raw()` upstream — NOT `express.json()`.
+ *
+ * @example
+ * ```typescript
+ * const hmacValidate = createHmacValidateMiddleware(config);
+ *
+ * // Protected route
+ * app.post('/api/orders', hmacValidate, (req, res) => {
+ *   res.json({ status: 'ok' });
+ * });
+ *
+ * // Unprotected route — no middleware
+ * app.get('/health', (req, res) => {
+ *   res.json({ status: 'healthy' });
+ * });
+ * ```
+ *
+ * @param config - HMAC configuration with shared secret and tolerance.
+ * @param secretResolver - Optional callback to resolve the secret per-request (e.g., for multi-tenant).
+ * @returns Express RequestHandler middleware function.
+ */
+export function createHmacValidateMiddleware(
+  config: HmacConfig,
+  secretResolver?: SecretResolver
+): RequestHandler {
+  return buildHmacHandler(config, secretResolver) as RequestHandler;
 }

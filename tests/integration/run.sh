@@ -295,7 +295,41 @@ for client in "csharp-client" "python-client/httpx" "python-client/requests" "ty
 done
 
 echo ""
+echo "--- Granular validation (per-endpoint opt-in) ---"
+echo ""
+printf "%-20s | %-15s | %-15s | %-15s | %-15s\n" "" "csharp-server" "python-server" "ts-server" "go-server"
+printf "%-20s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "---------------" "---------------" "---------------" "---------------"
+
+for client in "csharp-client" "python-client" "typescript-client" "go-client"; do
+    row=""
+    for server in "csharp-server" "python-server" "typescript-server" "go-server"; do
+        health_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET /health" | head -1)
+        nohmac_result=$(echo "$ALL_RESULTS" | grep "$client/nohmac -> $server GET" | head -1)
+
+        health_status="--"
+        nohmac_status="--"
+
+        if echo "$health_result" | grep -q "^PASS"; then
+            health_status="OK"
+        elif echo "$health_result" | grep -q "^FAIL"; then
+            health_status="FAIL"
+        fi
+
+        if echo "$nohmac_result" | grep -q "^PASS"; then
+            nohmac_status="OK"
+        elif echo "$nohmac_result" | grep -q "^FAIL"; then
+            nohmac_status="FAIL"
+        fi
+
+        cell="${health_status}/${nohmac_status}"
+        row="$row$(printf " | %-15s" "$cell")"
+    done
+    printf "%-20s%s\n" "$client" "$row"
+done
+
+echo ""
 echo "Legend: GET/POST status per cell (OK = 200, FAIL = error, -- = skipped)"
+echo "Granular: health(200)/nohmac(400) per cell"
 echo ""
 echo "Total: $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT skipped out of $TOTAL tests"
 

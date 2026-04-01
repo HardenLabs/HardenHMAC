@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace HardenLabs.Hmac.Tests;
 
@@ -16,7 +15,7 @@ public class SecretResolverMiddlewareTests : IAsyncLifetime
     private const string TenantASecret = "dGVuYW50LWEtc2VjcmV0LWtleS0zMi1ieXRlcyEhIQ==";
     private const string TenantBSecret = "dGVuYW50LWItc2VjcmV0LWtleS0zMi1ieXRlcyEhIQ==";
 
-    private IHost? _host;
+    private WebApplication? _app;
     private HttpClient? _testClient;
 
     public async Task InitializeAsync()
@@ -40,38 +39,29 @@ public class SecretResolverMiddlewareTests : IAsyncLifetime
             };
         };
 
-        _host = await new HostBuilder()
-            .ConfigureWebHost(webBuilder =>
-            {
-                webBuilder
-                    .UseTestServer()
-                    .ConfigureServices(services =>
-                    {
-                        services.AddHardenHmac(config, secretResolver);
-                        services.AddLogging();
-                    })
-                    .Configure(app =>
-                    {
-                        app.UseHardenHmac();
-                        app.Run(async context =>
-                        {
-                            context.Response.StatusCode = 200;
-                            await context.Response.WriteAsync("OK");
-                        });
-                    });
-            })
-            .StartAsync();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddHardenHmac(config, secretResolver);
+        builder.Services.AddLogging();
+        builder.WebHost.UseTestServer();
 
-        _testClient = _host.GetTestClient();
+        _app = builder.Build();
+        _app.UseRouting();
+        _app.UseHardenHmac();
+
+        _app.MapGet("/api/test", () => "OK").WithMetadata(new HmacValidateAttribute());
+        _app.MapPost("/api/test", () => "OK").WithMetadata(new HmacValidateAttribute());
+
+        await _app.StartAsync();
+        _testClient = _app.GetTestClient();
     }
 
     public async Task DisposeAsync()
     {
         _testClient?.Dispose();
-        if (_host is not null)
+        if (_app is not null)
         {
-            await _host.StopAsync();
-            _host.Dispose();
+            await _app.StopAsync();
+            await _app.DisposeAsync();
         }
     }
 

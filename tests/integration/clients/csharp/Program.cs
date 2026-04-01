@@ -120,6 +120,56 @@ foreach (var server in servers)
     {
         results.Add($"FAIL {ClientId} -> {serverName} POST /api/echo (ERR): {ex.Message}");
     }
+
+    // GET /health — unprotected, no HMAC required (use plain HttpClient)
+    try
+    {
+        using var plainClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var response = await plainClient.GetAsync("/health");
+        var status = (int)response.StatusCode;
+        if (status == 200)
+        {
+            results.Add($"PASS {ClientId} -> {serverName} GET /health ({status})");
+        }
+        else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            results.Add($"FAIL {ClientId} -> {serverName} GET /health ({status}): {body}");
+        }
+    }
+    catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+    {
+        results.Add($"SKIP {ClientId} -> {serverName} GET /health (server not running)");
+    }
+    catch (Exception ex)
+    {
+        results.Add($"FAIL {ClientId} -> {serverName} GET /health (ERR): {ex.Message}");
+    }
+
+    // GET /api/hello — protected, WITHOUT HMAC headers (expect 4xx rejection)
+    try
+    {
+        using var plainClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var response = await plainClient.GetAsync("/api/hello");
+        var status = (int)response.StatusCode;
+        if (status >= 400 && status < 500)
+        {
+            results.Add($"PASS {ClientId}/nohmac -> {serverName} GET /api/hello ({status})");
+        }
+        else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            results.Add($"FAIL {ClientId}/nohmac -> {serverName} GET /api/hello (expected 4xx, got {status}): {body}");
+        }
+    }
+    catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+    {
+        results.Add($"SKIP {ClientId}/nohmac -> {serverName} GET /api/hello (server not running)");
+    }
+    catch (Exception ex)
+    {
+        results.Add($"FAIL {ClientId}/nohmac -> {serverName} GET /api/hello (ERR): {ex.Message}");
+    }
 }
 
 foreach (var result in results)

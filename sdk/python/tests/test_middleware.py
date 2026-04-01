@@ -3,11 +3,12 @@
 import time
 
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 
 from hardenlabs_hmac.canonical import build_canonical_string
 from hardenlabs_hmac.config import HmacConfig, SignedHeadersConfig
+from hardenlabs_hmac.middleware.depends import HmacValidate, install_hmac_exception_handler
 from hardenlabs_hmac.middleware.fastapi import HardenHmacMiddleware
 from hardenlabs_hmac.signing import sign
 
@@ -132,3 +133,95 @@ class TestMiddlewareExpiredTimestamp:
         assert response.status_code == 401
         body = response.json()
         assert body["error"] == "timestamp_expired"
+
+
+# ---------------------------------------------------------------------------
+# HmacValidate dependency tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def dep_app() -> FastAPI:
+    """Create a FastAPI app using per-route HmacValidate dependency."""
+    config = HmacConfig(
+        shared_secret_base64=TEST_SECRET,
+        signed_headers=SignedHeadersConfig.none(),
+        timestamp_tolerance_seconds=30,
+    )
+    hmac_validate = HmacValidate(config)
+
+    application = FastAPI()
+    install_hmac_exception_handler(application)
+
+    @application.post("/api/orders")
+    async def create_order(
+        request: Request, _hmac: None = Depends(hmac_validate)
+    ) -> dict[str, str]:
+        return {"status": "ok"}
+
+    @application.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "healthy"}
+
+    return application
+
+
+@pytest.fixture()
+def dep_client(dep_app: FastAPI) -> TestClient:
+    return TestClient(dep_app, raise_server_exceptions=False)
+
+
+class TestHmacValidateDependency:
+    """Tests for the per-route HmacValidate FastAPI dependency."""
+
+    def test_valid_signature_passes(self, dep_client: TestClient) -> None:
+        body = '{"item":"widget"}'
+        now = int(time.time())
+        sig, ts = _sign_request("POST", "/api/orders", body, now)
+        response = dep_client.post(
+            "/api/orders",
+            content=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Harden-Signature": sig,
+                "X-Harden-Timestamp": ts,
+            },
+        )
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+    def test_missing_signature_returns_400(self, dep_client: TestClient) -> None:
+        now = int(time.time())
+        response = dep_client.post(
+            "/api/orders",
+            content="{}",
+            headers={
+                "Content-Type": "application/json",
+                "X-Harden-Timestamp": str(now),
+            },
+        )
+        assert response.status_code == 400
+        body = response.json()
+        assert body["error"] == "missing_signature"
+        assert "message" in body
+
+    def test_invalid_signature_returns_401(self, dep_client: TestClient) -> None:
+        now = int(time.time())
+        response = dep_client.post(
+            "/api/orders",
+            content="{}",
+            headers={
+                "Content-Type": "application/json",
+                "X-Harden-Signature": "0" * 64,
+                "X-Harden-Timestamp": str(now),
+            },
+        )
+        assert response.status_code == 401
+        body = response.json()
+        assert body["error"] == "signature_invalid"
+        assert "message" in body
+
+    def test_unprotected_route_needs_no_headers(self, dep_client: TestClient) -> None:
+        response = dep_client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"status": "healthy"}

@@ -131,5 +131,46 @@ func main() {
 				fmt.Printf("FAIL %s -> %s POST /api/echo (%d): %s\n", clientID, s.name, resp.StatusCode, string(body))
 			}
 		}
+
+		// GET /health — unprotected, no HMAC required (plain HTTP client)
+		plainClient := &http.Client{}
+		healthURL := fmt.Sprintf("%s/health", baseURL)
+		resp, err = plainClient.Get(healthURL)
+		if err != nil {
+			var netErr *net.OpError
+			if errors.As(err, &netErr) {
+				fmt.Printf("SKIP %s -> %s GET /health (server not running)\n", clientID, s.name)
+			} else {
+				fmt.Printf("FAIL %s -> %s GET /health: %v\n", clientID, s.name, err)
+			}
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				fmt.Printf("PASS %s -> %s GET /health (%d)\n", clientID, s.name, resp.StatusCode)
+			} else {
+				fmt.Printf("FAIL %s -> %s GET /health (%d): %s\n", clientID, s.name, resp.StatusCode, string(body))
+			}
+		}
+
+		// GET /api/hello — protected, WITHOUT HMAC headers (expect 4xx rejection)
+		helloURL := fmt.Sprintf("%s/api/hello", baseURL)
+		resp, err = plainClient.Get(helloURL)
+		if err != nil {
+			var netErr *net.OpError
+			if errors.As(err, &netErr) {
+				fmt.Printf("SKIP %s/nohmac -> %s GET /api/hello (server not running)\n", clientID, s.name)
+			} else {
+				fmt.Printf("FAIL %s/nohmac -> %s GET /api/hello: %v\n", clientID, s.name, err)
+			}
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+				fmt.Printf("PASS %s/nohmac -> %s GET /api/hello (%d)\n", clientID, s.name, resp.StatusCode)
+			} else {
+				fmt.Printf("FAIL %s/nohmac -> %s GET /api/hello (expected 4xx, got %d): %s\n", clientID, s.name, resp.StatusCode, string(body))
+			}
+		}
 	}
 }

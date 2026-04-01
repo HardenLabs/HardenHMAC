@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  hardenHmacMiddleware,
+  createHmacValidateMiddleware,
   defaultSignedHeadersConfig,
   DEFAULT_TIMESTAMP_TOLERANCE_SECONDS,
   type HmacClientIdentity,
@@ -36,14 +36,15 @@ const app = express();
 // Parse ALL content types as raw text for HMAC verification
 app.use(express.text({ type: "*/*" }));
 
-// Apply HMAC middleware
-app.use(hardenHmacMiddleware(hmacConfig));
+// Per-route HMAC validation middleware
+const hmacValidate = createHmacValidateMiddleware(hmacConfig);
 
-app.get("/api/hello", (_req, res) => {
+// Protected endpoints — require HMAC validation
+app.get("/api/hello", hmacValidate, (_req, res) => {
   res.json({ message: "hello from typescript" });
 });
 
-app.post("/api/echo", (req, res) => {
+app.post("/api/echo", hmacValidate, (req, res) => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(req.body as string);
@@ -51,6 +52,11 @@ app.post("/api/echo", (req, res) => {
     parsed = req.body;
   }
   res.json({ echo: parsed, language: "typescript" });
+});
+
+// Unprotected endpoint — no middleware, no HMAC required
+app.get("/health", (_req, res) => {
+  res.json({ status: "healthy", language: "typescript" });
 });
 
 app.listen(port, "0.0.0.0", () => {

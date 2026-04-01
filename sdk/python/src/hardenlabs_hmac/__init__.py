@@ -14,6 +14,11 @@ from hardenlabs_hmac.config import (
     SignedHeadersConfig,
 )
 from hardenlabs_hmac.exceptions import HmacValidationError
+from hardenlabs_hmac.middleware.depends import (
+    HmacValidate,
+    HmacValidationHttpError,
+    install_hmac_exception_handler,
+)
 from hardenlabs_hmac.signing import sign, verify
 from hardenlabs_hmac.validation import validate_request
 
@@ -30,7 +35,10 @@ __all__ = [
     "HmacRequestsClient",
     "HmacTargetConfig",
     "SignedHeadersConfig",
+    "HmacValidate",
     "HmacValidationError",
+    "HmacValidationHttpError",
+    "install_hmac_exception_handler",
 ]
 
 __version__ = "0.1.0"

@@ -82,6 +82,39 @@ def make_request_requests(
         results.append(f"FAIL {tag} -> {server_name} {method} {path} (ERR): {e}")
 
 
+def make_request_plain(
+    tag: str, server_name: str, base_url: str, method: str, path: str,
+    expected_status: int = 200,
+) -> None:
+    """Send a request WITHOUT HMAC headers (plain httpx).
+
+    If expected_status is 0, any 4xx status code is accepted.
+    """
+    try:
+        if method == "GET":
+            resp = httpx.get(f"{base_url}{path}")
+        else:
+            resp = httpx.post(f"{base_url}{path}")
+
+        if expected_status == 0:
+            ok = 400 <= resp.status_code < 500
+        else:
+            ok = resp.status_code == expected_status
+
+        if ok:
+            results.append(f"PASS {tag} -> {server_name} {method} {path} ({resp.status_code})")
+        else:
+            expected_str = "4xx" if expected_status == 0 else str(expected_status)
+            results.append(
+                f"FAIL {tag} -> {server_name} {method} {path} "
+                f"(expected {expected_str}, got {resp.status_code}): {resp.text}"
+            )
+    except httpx.ConnectError:
+        results.append(f"SKIP {tag} -> {server_name} {method} {path} (server not running)")
+    except Exception as e:
+        results.append(f"FAIL {tag} -> {server_name} {method} {path} (ERR): {e}")
+
+
 for server in servers:
     port = ports.get(server)
     if port is None:
@@ -97,6 +130,10 @@ for server in servers:
     # requests adapter
     make_request_requests("python-client/requests", server_name, base_url, "GET", "/api/hello")
     make_request_requests("python-client/requests", server_name, base_url, "POST", "/api/echo", post_body)
+
+    # Granular validation tests (plain requests, no HMAC)
+    make_request_plain(CLIENT_ID, server_name, base_url, "GET", "/health", expected_status=200)
+    make_request_plain(CLIENT_ID + "/nohmac", server_name, base_url, "GET", "/api/hello", expected_status=0)  # any 4xx
 
 for result in results:
     print(result)

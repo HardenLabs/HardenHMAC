@@ -12,8 +12,11 @@
     }
   },
   "license": "Apache-2.0",
+  "keywords": ["hmac", "authentication", "signing", "security", "cross-language", "middleware", "express", "fetch", "axios"],
+  "homepage": "https://github.com/HardenLabs/HardenHMAC",
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",

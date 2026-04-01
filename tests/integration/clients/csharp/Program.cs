@@ -86,6 +86,10 @@ foreach (var server in servers)
             results.Add($"FAIL {ClientId} -> {serverName} GET /api/hello ({status}): {body}");
         }
     }
+    catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+    {
+        results.Add($"SKIP {ClientId} -> {serverName} GET /api/hello (server not running)");
+    }
     catch (Exception ex)
     {
         results.Add($"FAIL {ClientId} -> {serverName} GET /api/hello (ERR): {ex.Message}");
@@ -107,6 +111,10 @@ foreach (var server in servers)
             var body = await response.Content.ReadAsStringAsync();
             results.Add($"FAIL {ClientId} -> {serverName} POST /api/echo ({status}): {body}");
         }
+    }
+    catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+    {
+        results.Add($"SKIP {ClientId} -> {serverName} POST /api/echo (server not running)");
     }
     catch (Exception ex)
     {

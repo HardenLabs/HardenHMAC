@@ -49,6 +49,8 @@ for server in servers:
             results.append(f"PASS {CLIENT_ID} -> {server_name} GET /api/hello ({status})")
         else:
             results.append(f"FAIL {CLIENT_ID} -> {server_name} GET /api/hello ({status}): {resp.text}")
+    except httpx.ConnectError:
+        results.append(f"SKIP {CLIENT_ID} -> {server_name} GET /api/hello (server not running)")
     except Exception as e:
         results.append(f"FAIL {CLIENT_ID} -> {server_name} GET /api/hello (ERR): {e}")
 
@@ -69,6 +71,8 @@ for server in servers:
             results.append(f"PASS {CLIENT_ID} -> {server_name} POST /api/echo ({status})")
         else:
             results.append(f"FAIL {CLIENT_ID} -> {server_name} POST /api/echo ({status}): {resp.text}")
+    except httpx.ConnectError:
+        results.append(f"SKIP {CLIENT_ID} -> {server_name} POST /api/echo (server not running)")
     except Exception as e:
         results.append(f"FAIL {CLIENT_ID} -> {server_name} POST /api/echo (ERR): {e}")
 

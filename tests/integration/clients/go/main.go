@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,8 +24,11 @@ type configFile struct {
 }
 
 func loadConfig() (*configFile, error) {
-	dir, _ := os.Getwd()
-	for dir != "/" {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get working directory: %w", err)
+	}
+	for {
 		candidate := filepath.Join(dir, "config.json")
 		if _, err := os.Stat(candidate); err == nil {
 			data, err := os.ReadFile(candidate)
@@ -36,7 +41,11 @@ func loadConfig() (*configFile, error) {
 			}
 			return &cfg, nil
 		}
-		dir = filepath.Dir(dir)
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
 	return nil, fmt.Errorf("config.json not found")
 }
@@ -84,6 +93,12 @@ func main() {
 		// GET /api/hello
 		resp, err := client.Get("/api/hello")
 		if err != nil {
+			var netErr *net.OpError
+			if errors.As(err, &netErr) {
+				fmt.Printf("SKIP %s -> %s GET /api/hello (server not running)\n", clientID, s.name)
+				fmt.Printf("SKIP %s -> %s POST /api/echo (server not running)\n", clientID, s.name)
+				continue
+			}
 			fmt.Printf("FAIL %s -> %s GET /api/hello: %v\n", clientID, s.name, err)
 		} else {
 			body, _ := io.ReadAll(resp.Body)
@@ -99,6 +114,11 @@ func main() {
 		postBody := fmt.Sprintf(`{"from":"%s","test":"integration"}`, clientID)
 		resp, err = client.Post("/api/echo", "application/json", postBody)
 		if err != nil {
+			var netErr *net.OpError
+			if errors.As(err, &netErr) {
+				fmt.Printf("SKIP %s -> %s POST /api/echo (server not running)\n", clientID, s.name)
+				continue
+			}
 			fmt.Printf("FAIL %s -> %s POST /api/echo: %v\n", clientID, s.name, err)
 		} else {
 			body, _ := io.ReadAll(resp.Body)

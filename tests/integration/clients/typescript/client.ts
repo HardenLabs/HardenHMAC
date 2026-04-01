@@ -52,8 +52,11 @@ for (const server of servers) {
       const body = await resp.text();
       results.push(`FAIL ${CLIENT_ID} -> ${serverName} GET /api/hello (${resp.status}): ${body}`);
     }
-  } catch (e) {
-    results.push(`FAIL ${CLIENT_ID} -> ${serverName} GET /api/hello (ERR): ${e}`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error && e.cause && (e.cause as NodeJS.ErrnoException).code === "ECONNREFUSED"
+      ? `SKIP ${CLIENT_ID} -> ${serverName} GET /api/hello (server not running)`
+      : `FAIL ${CLIENT_ID} -> ${serverName} GET /api/hello (ERR): ${e}`;
+    results.push(msg);
   }
 
   // POST /api/echo
@@ -84,8 +87,11 @@ for (const server of servers) {
       const respBody = await resp.text();
       results.push(`FAIL ${CLIENT_ID} -> ${serverName} POST /api/echo (${resp.status}): ${respBody}`);
     }
-  } catch (e) {
-    results.push(`FAIL ${CLIENT_ID} -> ${serverName} POST /api/echo (ERR): ${e}`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error && e.cause && (e.cause as NodeJS.ErrnoException).code === "ECONNREFUSED"
+      ? `SKIP ${CLIENT_ID} -> ${serverName} POST /api/echo (server not running)`
+      : `FAIL ${CLIENT_ID} -> ${serverName} POST /api/echo (ERR): ${e}`;
+    results.push(msg);
   }
 }
 

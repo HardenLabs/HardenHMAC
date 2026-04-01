@@ -20,8 +20,11 @@ type configFile struct {
 }
 
 func loadConfig() (*configFile, error) {
-	dir, _ := os.Getwd()
-	for dir != "/" {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get working directory: %w", err)
+	}
+	for {
 		candidate := filepath.Join(dir, "config.json")
 		if _, err := os.Stat(candidate); err == nil {
 			data, err := os.ReadFile(candidate)
@@ -34,7 +37,11 @@ func loadConfig() (*configFile, error) {
 			}
 			return &cfg, nil
 		}
-		dir = filepath.Dir(dir)
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
 	}
 	return nil, fmt.Errorf("config.json not found")
 }

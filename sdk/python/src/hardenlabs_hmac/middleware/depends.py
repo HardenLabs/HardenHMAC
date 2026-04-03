@@ -77,8 +77,13 @@ class HmacValidate:
     Args:
         config: HMAC configuration with shared secret and tolerance.
         secret_resolver: Optional async callback that resolves the shared secret
-            per-request.  If it returns ``None``, falls back to
-            ``config.clients`` then ``config.shared_secret_base64``.
+            per-request.  If it returns ``None``, the resolver falls back to
+            looking up the client from the ``X-Harden-Client-Id`` header in
+            ``config.clients``, and then (if no client ID is provided) to
+            ``config.shared_secret_base64``.  If ``X-Harden-Client-Id`` is
+            present but does not match a configured client, validation fails
+            with an ``unknown_client`` error and does not fall back to
+            ``config.shared_secret_base64``.
     """
 
     def __init__(

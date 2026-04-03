@@ -142,8 +142,16 @@ public sealed class HardenHmacMiddleware
     {
         var endpoint = context.GetEndpoint();
 
+        if (endpoint == null)
+        {
+            _logger.LogWarning(
+                "No endpoint resolved for {Path}. Ensure UseRouting() is called before UseHardenHmac() so that [HmacValidate] attributes are respected.",
+                context.Request.Path);
+            return false;
+        }
+
         // Priority 0: [SkipHmacValidate] — highest priority, always skip
-        if (endpoint?.Metadata?.GetMetadata<SkipHmacValidateAttribute>() != null)
+        if (endpoint.Metadata?.GetMetadata<SkipHmacValidateAttribute>() != null)
         {
             _logger.LogDebug("Skipping HMAC validation for {Path} due to [SkipHmacValidate] attribute",
                 context.Request.Path);
@@ -151,7 +159,7 @@ public sealed class HardenHmacMiddleware
         }
 
         // Priority 1: [HmacValidate] — requires validation
-        if (endpoint?.Metadata?.GetMetadata<HmacValidateAttribute>() != null)
+        if (endpoint.Metadata?.GetMetadata<HmacValidateAttribute>() != null)
         {
             _logger.LogDebug("Requiring HMAC validation for {Path} due to [HmacValidate] attribute",
                 context.Request.Path);

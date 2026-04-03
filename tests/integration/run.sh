@@ -329,7 +329,7 @@ done
 
 echo ""
 echo "Legend: GET/POST status per cell (OK = 200, FAIL = error, -- = skipped)"
-echo "Granular: health(200)/nohmac(400) per cell"
+echo "Granular: health(200)/nohmac(4xx) per cell"
 echo ""
 echo "Total: $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT skipped out of $TOTAL tests"
 

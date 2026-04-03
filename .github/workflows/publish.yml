@@ -38,8 +38,7 @@ jobs:
         run: pip install build twine
       - name: Test
         run: |
-          pip install -e "sdk/python[fastapi]"
-          pip install pytest httpx requests
+          pip install -e "sdk/python[fastapi,dev]"
           cd sdk/python && python -m pytest tests/ -v
       - name: Set version
         run: |

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -219,6 +220,114 @@ func TestSigningTransport_NoClientId(t *testing.T) {
 
 	if capturedHeaders.Get(ClientIdHeader) != "" {
 		t.Error("expected no X-Harden-Client-Id when TargetName is empty")
+	}
+}
+
+func TestClient_NewRequest(t *testing.T) {
+	client := &Client{
+		Client:  &http.Client{},
+		BaseURL: "http://example.com/v1",
+	}
+
+	req, err := client.NewRequest("POST", "/api/test", strings.NewReader(`{"x":1}`))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+
+	if req.Method != "POST" {
+		t.Errorf("expected method POST, got %s", req.Method)
+	}
+	expectedURL := "http://example.com/v1/api/test"
+	if req.URL.String() != expectedURL {
+		t.Errorf("expected URL %q, got %q", expectedURL, req.URL.String())
+	}
+	if req.Body == nil {
+		t.Error("expected non-nil body")
+	}
+}
+
+func TestClient_NewRequest_NilBody(t *testing.T) {
+	client := &Client{
+		Client:  &http.Client{},
+		BaseURL: "http://example.com",
+	}
+
+	req, err := client.NewRequest("GET", "/health", nil)
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	if req.Body != nil {
+		t.Error("expected nil body for GET request with nil body")
+	}
+}
+
+func TestClient_Do(t *testing.T) {
+	// Server that captures headers and echoes body
+	var capturedHeaders http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedHeaders = r.Header.Clone()
+		body, _ := io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+
+	config := &HmacConfig{
+		SharedSecretBase64: testSecret,
+		SignedHeaders:      NoneSignedHeadersConfig(),
+		Targets: map[string]HmacTargetConfig{
+			"do-test": {
+				BaseURL:      server.URL,
+				SharedSecret: testSecret,
+			},
+		},
+	}
+
+	factory := NewClientFactory(config)
+	client, err := factory.CreateClient("do-test")
+	if err != nil {
+		t.Fatalf("CreateClient failed: %v", err)
+	}
+
+	// Use NewRequest + Do
+	reqBody := `{"action":"do-test"}`
+	req, err := client.NewRequest("PUT", "/api/resource", strings.NewReader(reqBody))
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Do failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	// Verify request was signed
+	sig := capturedHeaders.Get(SignatureHeader)
+	if sig == "" {
+		t.Error("missing X-Harden-Signature header — request was not signed")
+	}
+	if len(sig) != 64 {
+		t.Errorf("expected 64-char signature, got %d chars", len(sig))
+	}
+	ts := capturedHeaders.Get(TimestampHeader)
+	if ts == "" {
+		t.Error("missing X-Harden-Timestamp header")
+	}
+	clientID := capturedHeaders.Get(ClientIdHeader)
+	if clientID != "do-test" {
+		t.Errorf("expected X-Harden-Client-Id 'do-test', got %q", clientID)
+	}
+
+	// Verify body was sent through
+	respBody, _ := io.ReadAll(resp.Body)
+	if string(respBody) != reqBody {
+		t.Errorf("expected body %q, got %q", reqBody, string(respBody))
 	}
 }
 

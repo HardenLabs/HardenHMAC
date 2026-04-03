@@ -293,11 +293,9 @@ class TestHmacClientFactory:
         factory = HmacClientFactory(self._factory_config())
         client = factory.create_client("my-service")
         assert isinstance(client, httpx.AsyncClient)
-        # Can't await close in sync test, just check the type
-        # Use sync close
         import asyncio
 
-        asyncio.get_event_loop().run_until_complete(client.aclose())
+        asyncio.run(client.aclose())
 
     def test_create_client_sets_base_url(self) -> None:
         factory = HmacClientFactory(self._factory_config())
@@ -305,7 +303,7 @@ class TestHmacClientFactory:
         assert str(client.base_url) == "https://api.example.com"
         import asyncio
 
-        asyncio.get_event_loop().run_until_complete(client.aclose())
+        asyncio.run(client.aclose())
 
     def test_create_client_uses_async_transport(self) -> None:
         factory = HmacClientFactory(self._factory_config())
@@ -315,7 +313,7 @@ class TestHmacClientFactory:
         assert transport._client_id == "my-service"
         import asyncio
 
-        asyncio.get_event_loop().run_until_complete(client.aclose())
+        asyncio.run(client.aclose())
 
     def test_create_client_raises_for_unknown_target(self) -> None:
         factory = HmacClientFactory(self._factory_config())

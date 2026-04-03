@@ -47,7 +47,7 @@ Routes without `Depends(hmac_validate)` are not validated. Use the global `Harde
 
 | Symbol | Description |
 |--------|-------------|
-| `HmacValidate(config, secret_resolver=)` | Per-route dependency for `Depends()` |
+| `HmacValidate(config, secret_resolver=None)` | Per-route dependency for `Depends()` |
 | `install_hmac_exception_handler(app)` | Register error handler (call once per app) |
 | `HmacValidationHttpError` | Exception raised on validation failure |
 | `HardenHmacMiddleware` | Global middleware (validates all routes) |

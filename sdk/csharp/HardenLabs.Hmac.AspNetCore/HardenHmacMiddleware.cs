@@ -39,6 +39,12 @@ public sealed class HardenHmacMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        if (!ShouldValidate(context))
+        {
+            await _next(context);
+            return;
+        }
+
         var request = context.Request;
 
         // Read body (enable buffering so downstream can read it too)
@@ -130,6 +136,39 @@ public sealed class HardenHmacMiddleware
 
         _logger.LogDebug("HMAC validation succeeded for {Method} {Path}", request.Method, path);
         await _next(context);
+    }
+
+    private bool ShouldValidate(HttpContext context)
+    {
+        var endpoint = context.GetEndpoint();
+
+        if (endpoint == null)
+        {
+            _logger.LogWarning(
+                "No endpoint resolved for {Path}. Ensure UseRouting() is called before UseHardenHmac() so that [HmacValidate] attributes are respected.",
+                context.Request.Path);
+            return false;
+        }
+
+        // Priority 0: [SkipHmacValidate] — highest priority, always skip
+        if (endpoint.Metadata?.GetMetadata<SkipHmacValidateAttribute>() != null)
+        {
+            _logger.LogDebug("Skipping HMAC validation for {Path} due to [SkipHmacValidate] attribute",
+                context.Request.Path);
+            return false;
+        }
+
+        // Priority 1: [HmacValidate] — requires validation
+        if (endpoint.Metadata?.GetMetadata<HmacValidateAttribute>() != null)
+        {
+            _logger.LogDebug("Requiring HMAC validation for {Path} due to [HmacValidate] attribute",
+                context.Request.Path);
+            return true;
+        }
+
+        // Default: do not validate (opt-in model)
+        _logger.LogDebug("Skipping HMAC validation for {Path} (not opted-in)", context.Request.Path);
+        return false;
     }
 
     private async Task<(string? secret, (string errorType, string message)? error)> ResolveSecretAsync(HttpContext context)

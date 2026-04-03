@@ -45,10 +45,34 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHardenHmac(config);
 
 var app = builder.Build();
+app.UseRouting();
 app.UseHardenHmac();
 
-app.MapGet("/api/hello", () => Results.Ok(new { message = "Authenticated!" }));
+// Protected — requires valid HMAC signature
+app.MapGet("/api/hello", () => Results.Ok(new { message = "Authenticated!" }))
+    .WithMetadata(new HmacValidateAttribute());
+
+// Unprotected — no HMAC required
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 app.Run();
+```
+
+Use `[HmacValidate]` on controllers or actions to opt in to HMAC validation. Use `[SkipHmacValidate]` on individual actions to exempt them when the controller is protected:
+
+```csharp
+[ApiController]
+[Route("api/orders")]
+[HmacValidate]              // All actions in this controller require HMAC
+public class OrdersController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult GetOrders() => Ok();
+
+    [HttpGet("health")]
+    [SkipHmacValidate]      // Exempt from validation
+    public IActionResult Health() => Ok(new { status = "healthy" });
+}
 ```
 
 ### C# — Client (HttpClient)
@@ -79,10 +103,9 @@ var response = await client.GetAsync("/api/hello"); // automatically signed
 ### Python — Server (FastAPI)
 
 ```python
-import base64
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
+from hardenlabs_hmac import HmacValidate, install_hmac_exception_handler
 from hardenlabs_hmac.config import HmacConfig, SignedHeadersConfig
-from hardenlabs_hmac.middleware.fastapi import HardenHmacMiddleware
 
 config = HmacConfig(
     shared_secret_base64="your-base64-encoded-secret",
@@ -90,12 +113,20 @@ config = HmacConfig(
     timestamp_tolerance_seconds=30,
 )
 
-app = FastAPI()
-app.add_middleware(HardenHmacMiddleware, config=config)
+hmac_validate = HmacValidate(config)
 
+app = FastAPI()
+install_hmac_exception_handler(app)
+
+# Protected — requires valid HMAC signature
 @app.get("/api/hello")
-async def hello():
+async def hello(request: Request, _hmac: None = Depends(hmac_validate)):
     return {"message": "Authenticated!"}
+
+# Unprotected — no dependency, no HMAC required
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 ```
 
 ### Python — Client
@@ -142,7 +173,7 @@ with factory.create_requests_session("my-service") as client:
 
 ```typescript
 import express from "express";
-import { createHmacConfig, hardenHmacMiddleware } from "@hardenlabs/hmac";
+import { createHmacConfig, createHmacValidateMiddleware } from "@hardenlabs/hmac";
 
 const config = createHmacConfig("your-base64-encoded-secret", {
   timestampToleranceSeconds: 30,
@@ -151,10 +182,17 @@ const config = createHmacConfig("your-base64-encoded-secret", {
 const app = express();
 // IMPORTANT: Use express.text(), NOT express.json() — the middleware needs the raw body
 app.use(express.text({ type: "*/*" }));
-app.use(hardenHmacMiddleware(config));
 
-app.get("/api/hello", (_req, res) => {
+const hmacValidate = createHmacValidateMiddleware(config);
+
+// Protected — requires valid HMAC signature
+app.get("/api/hello", hmacValidate, (_req, res) => {
   res.json({ message: "Authenticated!" });
+});
+
+// Unprotected — no middleware, no HMAC required
+app.get("/health", (_req, res) => {
+  res.json({ status: "healthy" });
 });
 
 app.listen(3000);
@@ -219,13 +257,21 @@ func main() {
 		SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
 	}
 
+	validate := hardenhmac.NewHmacValidateHandler(config, nil)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
+
+	// Protected — requires valid HMAC signature
+	mux.Handle("/api/hello", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"message":"Authenticated!"}`))
+	})))
+
+	// Unprotected — no wrapper, no HMAC required
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"status":"healthy"}`))
 	})
 
-	handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
-	http.ListenAndServe(":8080", handler)
+	http.ListenAndServe(":8080", mux)
 }
 ```
 
@@ -359,7 +405,10 @@ var config = new HmacConfig
 };
 
 builder.Services.AddHardenHmac(config);
+app.UseRouting();
 app.UseHardenHmac();
+
+app.MapGet("/api/orders", () => Results.Ok()).WithMetadata(new HmacValidateAttribute());
 // Requests with X-Harden-Client-Id: order-service -> validated with orders secret
 // Requests with X-Harden-Client-Id: unknown -> rejected with 401 unknown_client
 // Requests without X-Harden-Client-Id -> validated with fallback secret
@@ -368,6 +417,7 @@ app.UseHardenHmac();
 ### Python -- Multi-Client Server
 
 ```python
+from hardenlabs_hmac import HmacValidate, install_hmac_exception_handler
 from hardenlabs_hmac.config import HmacClientIdentity, HmacConfig, SignedHeadersConfig
 
 config = HmacConfig(
@@ -378,7 +428,9 @@ config = HmacConfig(
         "payment-service": HmacClientIdentity(shared_secret="payments-base64-secret"),
     },
 )
-app.add_middleware(HardenHmacMiddleware, config=config)
+
+hmac_validate = HmacValidate(config)
+install_hmac_exception_handler(app)
 ```
 
 ### TypeScript -- Multi-Client Server
@@ -390,7 +442,8 @@ const config = createHmacConfig("fallback-secret", {
     "payment-service": { sharedSecret: "payments-base64-secret" },
   },
 });
-app.use(hardenHmacMiddleware(config));
+const hmacValidate = createHmacValidateMiddleware(config);
+app.get("/api/orders", hmacValidate, handler);
 ```
 
 ### Go -- Multi-Client Server
@@ -405,22 +458,8 @@ config := &hardenhmac.HmacConfig{
 	},
 }
 
-handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
-```
-
-### Go -- Multi-Client Server
-
-```go
-config := &hardenhmac.HmacConfig{
-	SharedSecretBase64: "fallback-secret",
-	SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
-	Clients: map[string]hardenhmac.HmacClientIdentity{
-		"order-service":   {SharedSecret: "orders-base64-secret"},
-		"payment-service": {SharedSecret: "payments-base64-secret"},
-	},
-}
-
-handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
+validate := hardenhmac.NewHmacValidateHandler(config, nil)
+mux.Handle("/api/orders", validate(ordersHandler))
 ```
 
 The client factory automatically adds the `X-Harden-Client-Id` header when creating clients via `CreateClient`/`createClient`.
@@ -469,15 +508,15 @@ async def resolve_secret(request):
     client_id = request.headers.get("x-client-id")
     return await lookup_secret(client_id)
 
-app.add_middleware(HardenHmacMiddleware, config=config, secret_resolver=resolve_secret)
+hmac_validate = HmacValidate(config, secret_resolver=resolve_secret)
 ```
 
 ```typescript
 // TypeScript — resolve secret per-request
-app.use(hardenHmacMiddleware(config, (req) => {
+const hmacValidate = createHmacValidateMiddleware(config, (req) => {
   const clientId = req.headers["x-client-id"] as string;
   return lookupSecret(clientId);
-}));
+});
 ```
 
 ```go
@@ -486,7 +525,7 @@ resolver := func(r *http.Request) (string, error) {
 	clientID := r.Header.Get("X-Client-Id")
 	return lookupSecret(clientID)
 }
-handler := hardenhmac.NewHmacMiddleware(config, resolver)(mux)
+validate := hardenhmac.NewHmacValidateHandler(config, resolver)
 ```
 
 If the resolver returns `null` (or empty string in Go), the middleware falls back to `config.SharedSecretBase64`.
@@ -574,8 +613,14 @@ If HMAC validation fails with `missing_signature` or `missing_timestamp` errors 
 ### ASP.NET Core
 
 ```csharp
-// Server-side validation
+// Per-endpoint validation (opt-in via attributes)
+app.UseRouting();
 app.UseHardenHmac();
+app.MapGet("/api/data", () => "OK").WithMetadata(new HmacValidateAttribute());
+
+// Controller attributes
+[HmacValidate]                    // protect all actions
+[SkipHmacValidate]                // exempt specific actions
 
 // Client-side signing via multi-target factory
 builder.Services.AddHardenHmac(config);
@@ -588,31 +633,47 @@ builder.Services.AddHardenHmac(configuration.GetSection("HardenHmac"));
 ### FastAPI / Starlette
 
 ```python
-# Simple
-app.add_middleware(HardenHmacMiddleware, config=config)
+# Per-endpoint validation (opt-in via dependency injection)
+hmac_validate = HmacValidate(config)
+install_hmac_exception_handler(app)
 
-# Multi-tenant
-app.add_middleware(HardenHmacMiddleware, config=config, secret_resolver=my_resolver)
+@app.get("/api/data")
+async def get_data(request: Request, _hmac: None = Depends(hmac_validate)):
+    return {"data": "protected"}
+
+# Multi-tenant (with secret resolver)
+hmac_validate = HmacValidate(config, secret_resolver=my_resolver)
+
+# Global middleware (validates all routes)
+app.add_middleware(HardenHmacMiddleware, config=config)
 ```
 
 ### Express
 
 ```typescript
-// Simple
-app.use(hardenHmacMiddleware(config));
+// Per-route validation (opt-in via route middleware)
+const hmacValidate = createHmacValidateMiddleware(config);
+app.get("/api/data", hmacValidate, handler);
 
 // Multi-tenant
-app.use(hardenHmacMiddleware(config, secretResolver));
+const hmacValidate = createHmacValidateMiddleware(config, secretResolver);
+
+// Global middleware (validates all routes)
+app.use(hardenHmacMiddleware(config));
 ```
 
 ### net/http (Go)
 
 ```go
-// Simple
-handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
+// Per-route validation (opt-in via handler wrapper)
+validate := hardenhmac.NewHmacValidateHandler(config, nil)
+mux.Handle("/api/data", validate(dataHandler))
 
 // Multi-tenant
-handler := hardenhmac.NewHmacMiddleware(config, secretResolver)(mux)
+validate := hardenhmac.NewHmacValidateHandler(config, secretResolver)
+
+// Global middleware (validates all routes)
+handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
 ```
 
 ## Cross-Language Compatibility Guarantee

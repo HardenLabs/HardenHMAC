@@ -30,11 +30,30 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHardenHmac(config);
 
 var app = builder.Build();
+app.UseRouting();
 app.UseHardenHmac();
 
-app.MapGet("/api/hello", () => Results.Ok(new { message = "Authenticated!" }));
+// Protected — requires valid HMAC signature
+app.MapGet("/api/hello", () => Results.Ok(new { message = "Authenticated!" }))
+    .WithMetadata(new HmacValidateAttribute());
+
+// Unprotected — no attribute, no HMAC required
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 app.Run();
 ```
+
+Endpoints are **not** validated by default — use `[HmacValidate]` to opt in. Use `[SkipHmacValidate]` on actions to exempt them when the controller is protected.
+
+### Public API — Server
+
+| Type | Description |
+|------|-------------|
+| `HmacValidateAttribute` | Opt-in HMAC validation for controllers or actions |
+| `SkipHmacValidateAttribute` | Exempt actions from validation when controller is protected |
+| `UseHardenHmac()` | Register middleware in the pipeline (after `UseRouting()`) |
+| `AddHardenHmac(config)` | Register HMAC services for DI |
+| `AddHardenHmac(configuration)` | Register from `IConfiguration` section |
 
 ## Quick Start — Client (HttpClient)
 

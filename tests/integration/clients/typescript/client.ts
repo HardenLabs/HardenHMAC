@@ -79,6 +79,35 @@ async function makeRequest(
 const fetchAdapter = new FetchAdapter();
 const axiosAdapter = new AxiosAdapter(axios.create());
 
+async function makePlainRequest(
+  tag: string,
+  serverName: string,
+  baseUrl: string,
+  method: string,
+  path: string,
+  expectedStatus: number,
+): Promise<void> {
+  try {
+    const resp = await fetch(`${baseUrl}${path}`, { method });
+    const ok = expectedStatus === 0
+      ? resp.status >= 400 && resp.status < 500
+      : resp.status === expectedStatus;
+    if (ok) {
+      results.push(`PASS ${tag} -> ${serverName} ${method} ${path} (${resp.status})`);
+    } else {
+      const text = await resp.text();
+      const expected = expectedStatus === 0 ? "4xx" : String(expectedStatus);
+      results.push(`FAIL ${tag} -> ${serverName} ${method} ${path} (expected ${expected}, got ${resp.status}): ${text}`);
+    }
+  } catch (e: unknown) {
+    if (isConnectionRefused(e)) {
+      results.push(`SKIP ${tag} -> ${serverName} ${method} ${path} (server not running)`);
+    } else {
+      results.push(`FAIL ${tag} -> ${serverName} ${method} ${path} (ERR): ${e}`);
+    }
+  }
+}
+
 for (const server of servers) {
   const port = ports[server];
   if (port === undefined) continue;
@@ -94,6 +123,10 @@ for (const server of servers) {
   // Axios adapter
   await makeRequest(axiosAdapter, "typescript-client/axios", serverName, baseUrl, "GET", "/api/hello");
   await makeRequest(axiosAdapter, "typescript-client/axios", serverName, baseUrl, "POST", "/api/echo", postBody);
+
+  // Granular validation tests (plain requests, no HMAC)
+  await makePlainRequest(CLIENT_ID, serverName, baseUrl, "GET", "/health", 200);
+  await makePlainRequest(`${CLIENT_ID}/nohmac`, serverName, baseUrl, "GET", "/api/hello", 0); // any 4xx
 }
 
 for (const result of results) {

@@ -1,21 +1,18 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using FluentAssertions;
 using HardenLabs.Hmac.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace HardenLabs.Hmac.Tests;
 
 public class MiddlewareTests : IAsyncLifetime
 {
     private const string TestSecret = "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24=";
-    private IHost? _host;
+    private WebApplication? _app;
     private HttpClient? _testClient;
 
     public async Task InitializeAsync()
@@ -27,43 +24,43 @@ public class MiddlewareTests : IAsyncLifetime
             TimestampToleranceSeconds = 30
         };
 
-        _host = await new HostBuilder()
-            .ConfigureWebHost(webBuilder =>
-            {
-                webBuilder
-                    .UseTestServer()
-                    .ConfigureServices(services =>
-                    {
-                        services.AddHardenHmac(config);
-                        services.AddLogging();
-                    })
-                    .Configure(app =>
-                    {
-                        app.UseHardenHmac();
-                        app.Run(async context =>
-                        {
-                            context.Response.StatusCode = 200;
-                            await context.Response.WriteAsync("OK");
-                        });
-                    });
-            })
-            .StartAsync();
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddHardenHmac(config);
+        builder.Services.AddLogging();
+        builder.WebHost.UseTestServer();
 
-        _testClient = _host.GetTestClient();
+        _app = builder.Build();
+        _app.UseRouting();
+        _app.UseHardenHmac();
+
+        // Protected endpoints
+        _app.MapGet("/api/test", () => "OK").WithMetadata(new HmacValidateAttribute());
+        _app.MapPost("/api/test", () => "OK").WithMetadata(new HmacValidateAttribute());
+
+        // Unprotected endpoint
+        _app.MapGet("/health", () => "OK");
+
+        // Protected endpoint with skip override
+        _app.MapGet("/api/skip", () => "OK")
+            .WithMetadata(new HmacValidateAttribute())
+            .WithMetadata(new SkipHmacValidateAttribute());
+
+        await _app.StartAsync();
+        _testClient = _app.GetTestClient();
     }
 
     public async Task DisposeAsync()
     {
         _testClient?.Dispose();
-        if (_host is not null)
+        if (_app is not null)
         {
-            await _host.StopAsync();
-            _host.Dispose();
+            await _app.StopAsync();
+            await _app.DisposeAsync();
         }
     }
 
     [Fact]
-    public async Task Middleware_ValidSignature_Returns200()
+    public async Task ValidSignature_OnProtectedEndpoint_Returns200()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var canonical = CanonicalStringBuilder.Build("GET", "/api/test", "", timestamp, SignedHeadersConfig.None);
@@ -79,7 +76,7 @@ public class MiddlewareTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Middleware_MissingSignature_Returns400()
+    public async Task MissingSignature_OnProtectedEndpoint_Returns400()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/test");
         request.Headers.Add(HardenHmacConstants.TimestampHeader, "1700000000");
@@ -90,7 +87,7 @@ public class MiddlewareTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Middleware_InvalidSignature_Returns401()
+    public async Task InvalidSignature_OnProtectedEndpoint_Returns401()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/test");
@@ -104,7 +101,7 @@ public class MiddlewareTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Middleware_ExpiredTimestamp_Returns401()
+    public async Task ExpiredTimestamp_OnProtectedEndpoint_Returns401()
     {
         var oldTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 60;
         var canonical = CanonicalStringBuilder.Build("GET", "/api/test", "", oldTimestamp, SignedHeadersConfig.None);
@@ -120,7 +117,7 @@ public class MiddlewareTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Middleware_PostWithBody_ValidatesCorrectly()
+    public async Task PostWithBody_OnProtectedEndpoint_ValidatesCorrectly()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var body = "{\"name\":\"test\"}";
@@ -133,6 +130,26 @@ public class MiddlewareTests : IAsyncLifetime
         };
         request.Headers.Add(HardenHmacConstants.SignatureHeader, signature);
         request.Headers.Add(HardenHmacConstants.TimestampHeader, timestamp.ToString());
+
+        var response = await _testClient!.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task NoSignature_OnUnprotectedEndpoint_Returns200()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/health");
+
+        var response = await _testClient!.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task SkipAttribute_OnProtectedEndpoint_SkipsValidation()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/skip");
 
         var response = await _testClient!.SendAsync(request);
 

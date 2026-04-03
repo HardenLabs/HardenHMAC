@@ -32,7 +32,11 @@ export { validateRequest, type ValidateRequestParams } from "./validation.js";
 
 export { signRequestHeaders, createSignedFetch } from "./middleware/fetch.js";
 
-export { hardenHmacMiddleware, type SecretResolver } from "./middleware/express.js";
+export {
+  hardenHmacMiddleware,
+  createHmacValidateMiddleware,
+  type SecretResolver,
+} from "./middleware/express.js";
 
 export { fromEnv } from "./env-loader.js";
 

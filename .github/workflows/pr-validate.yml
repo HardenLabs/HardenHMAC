@@ -27,9 +27,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: |
-          pip install -e "sdk/python[fastapi]"
-          pip install pytest httpx requests
+        run: pip install -e "sdk/python[fastapi,dev]"
       - name: Test
         run: cd sdk/python && python -m pytest tests/ -v
 

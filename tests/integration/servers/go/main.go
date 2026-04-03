@@ -66,14 +66,18 @@ func main() {
 		Clients:                   clients,
 	}
 
+	// Per-route HMAC validation wrapper
+	validate := hardenhmac.NewHmacValidateHandler(hmacConfig, nil)
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
+	// Protected endpoints — wrapped with validate
+	mux.Handle("/api/hello", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"message": "hello from go"})
-	})
+	})))
 
-	mux.HandleFunc("/api/echo", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/echo", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		defer r.Body.Close()
 
@@ -87,10 +91,15 @@ func main() {
 			"echo":     parsed,
 			"language": "go",
 		})
+	})))
+
+	// Unprotected endpoint — no wrapper, no HMAC required
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "language": "go"})
 	})
 
-	// Wrap with HMAC validation middleware
-	handler := hardenhmac.NewHmacMiddleware(hmacConfig, nil)(mux)
+	handler := mux
 
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	log.Printf("Go server listening on port %d", port)

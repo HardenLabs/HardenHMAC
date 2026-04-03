@@ -12,7 +12,7 @@ npm install @hardenlabs/hmac
 
 ```typescript
 import express from "express";
-import { createHmacConfig, hardenHmacMiddleware } from "@hardenlabs/hmac";
+import { createHmacConfig, createHmacValidateMiddleware } from "@hardenlabs/hmac";
 
 const config = createHmacConfig("your-base64-encoded-secret", {
   timestampToleranceSeconds: 30,
@@ -24,14 +24,30 @@ const config = createHmacConfig("your-base64-encoded-secret", {
 const app = express();
 // IMPORTANT: Use express.text(), NOT express.json()
 app.use(express.text({ type: "*/*" }));
-app.use(hardenHmacMiddleware(config));
 
-app.get("/api/hello", (_req, res) => {
+const hmacValidate = createHmacValidateMiddleware(config);
+
+// Protected — requires valid HMAC signature
+app.get("/api/hello", hmacValidate, (_req, res) => {
   res.json({ message: "Authenticated!" });
+});
+
+// Unprotected — no middleware, no HMAC required
+app.get("/health", (_req, res) => {
+  res.json({ status: "healthy" });
 });
 
 app.listen(3000);
 ```
+
+Routes without `hmacValidate` in their middleware chain are not validated. Use `hardenHmacMiddleware(config)` with `app.use()` instead if you want all routes validated.
+
+### Public API — Server
+
+| Symbol | Description |
+|--------|-------------|
+| `createHmacValidateMiddleware(config, secretResolver?)` | Per-route middleware |
+| `hardenHmacMiddleware(config, secretResolver?)` | Global middleware (validates all routes) |
 
 ## Quick Start — Client (fetch)
 

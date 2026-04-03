@@ -13,9 +13,9 @@ pip install "hardenlabs-hmac[requests]"  # for requests library support
 ## Quick Start — Server (FastAPI)
 
 ```python
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
+from hardenlabs_hmac import HmacValidate, install_hmac_exception_handler
 from hardenlabs_hmac.config import HmacConfig, HmacClientIdentity, SignedHeadersConfig
-from hardenlabs_hmac.middleware.fastapi import HardenHmacMiddleware
 
 config = HmacConfig(
     signed_headers=SignedHeadersConfig.default(),
@@ -25,13 +25,32 @@ config = HmacConfig(
     },
 )
 
-app = FastAPI()
-app.add_middleware(HardenHmacMiddleware, config=config)
+hmac_validate = HmacValidate(config)
 
+app = FastAPI()
+install_hmac_exception_handler(app)
+
+# Protected — requires valid HMAC signature
 @app.get("/api/hello")
-async def hello():
+async def hello(request: Request, _hmac: None = Depends(hmac_validate)):
     return {"message": "Authenticated!"}
+
+# Unprotected — no dependency, no HMAC required
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 ```
+
+Routes without `Depends(hmac_validate)` are not validated. Use the global `HardenHmacMiddleware` instead if you want all routes validated.
+
+### Public API — Server
+
+| Symbol | Description |
+|--------|-------------|
+| `HmacValidate(config, secret_resolver=None)` | Per-route dependency for `Depends()` |
+| `install_hmac_exception_handler(app)` | Register error handler (call once per app) |
+| `HmacValidationHttpError` | Exception raised on validation failure |
+| `HardenHmacMiddleware` | Global middleware (validates all routes) |
 
 ## Quick Start — Client (httpx)
 

@@ -72,6 +72,10 @@ All SDK tests must pass before submitting a PR.
 - Doesn't introduce unnecessary dependencies
 - Includes tests that fail without the change and pass with it
 
+## New SDK Implementations
+
+We welcome new SDK implementations for languages and frameworks not yet covered. If you'd like to add support for a new language (e.g., Ruby, Java, Rust, Swift), go for it. New SDKs must pass the shared test vector suite at `tests/cross-language/test-vectors.json` to guarantee signature compatibility with existing implementations.
+
 ## Cross-Language Consistency
 
 HardenHMAC guarantees identical signatures across all four SDKs. This is enforced by a shared test vector suite at `tests/cross-language/test-vectors.json`.

@@ -23,11 +23,13 @@ func main() {
 	if secret == "" {
 		secret = "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24="
 	}
+	// config, err := hardenhmac.FromEnv("HARDEN_HMAC_")
 
 	config := &hardenhmac.HmacConfig{
 		SharedSecretBase64:        secret,
 		TimestampToleranceSeconds: 30,
 		SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+		// For custom headers: hardenhmac.SignedHeadersConfig{IncludeAuthorization: true, IncludeXHeaders: true, AdditionalHeaders: []string{"X-Request-Id"}, ExcludeHeaders: []string{"X-Debug"}}
 		Clients: map[string]hardenhmac.HmacClientIdentity{
 			"frontend-app": {SharedSecret: secret},
 			"mobile-app":   {SharedSecret: secret},
@@ -36,24 +38,40 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// Per-route HMAC validation — only protected endpoints are wrapped
+	validate := hardenhmac.NewHmacValidateHandler(config, nil)
+
+	// Unprotected route
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
-	mux.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
+	// Protected route
+	mux.Handle("/api/data", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		clientID := r.Header.Get(hardenhmac.ClientIdHeader)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message":   "authenticated",
 			"client_id": clientID,
 		})
-	})
+	})))
 
-	// Wrap with HMAC middleware
-	handler := hardenhmac.NewHmacMiddleware(config, nil)(mux)
+	// ── Option B: Multi-tenant server with secret resolver ──
+	// tenantSecrets := map[string]string{
+	//     "tenant-a": base64Encode("tenant-a-secret-key-32-bytes!!"),
+	//     "tenant-b": base64Encode("tenant-b-secret-key-32-bytes!!"),
+	// }
+	// secretResolver := func(r *http.Request) (string, error) {
+	//     clientID := r.Header.Get("X-Client-Id")
+	//     if secret, ok := tenantSecrets[clientID]; ok {
+	//         return secret, nil
+	//     }
+	//     return "", nil // fall back to config.SharedSecretBase64
+	// }
+	// handler := hardenhmac.NewHmacMiddleware(config, secretResolver)(mux)
 
 	addr := ":8080"
 	fmt.Printf("Server listening on %s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, handler))
+	log.Fatal(http.ListenAndServe(addr, mux))
 }

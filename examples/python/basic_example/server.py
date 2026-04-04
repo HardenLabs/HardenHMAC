@@ -3,13 +3,15 @@
 import base64
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from starlette.requests import Request
 
 from hardenlabs_hmac.config import HmacClientIdentity, HmacConfig, SignedHeadersConfig
+from hardenlabs_hmac.middleware import HmacValidate, install_hmac_exception_handler
 from hardenlabs_hmac.middleware.fastapi import HardenHmacMiddleware
 
 # Secrets (in production, load from environment/secrets manager)
+# config = HmacConfig.from_env()  # reads HARDEN_HMAC_* environment variables
 default_secret = base64.b64encode(b"my-shared-secret-key-32-bytes!!").decode()
 orders_secret = base64.b64encode(b"orders-secret-key-32-bytes!!!!!").decode()
 payments_secret = base64.b64encode(b"payments-secret-key-32-bytes!!").decode()
@@ -21,6 +23,7 @@ payments_secret = base64.b64encode(b"payments-secret-key-32-bytes!!").decode()
 multi_client_config = HmacConfig(
     shared_secret_base64=default_secret,  # fallback when no client ID
     signed_headers=SignedHeadersConfig.default(),
+    # For custom headers: SignedHeadersConfig(include_authorization=True, include_x_headers=True, additional_headers=["X-Request-Id"], exclude_headers=["X-Debug"])
     timestamp_tolerance_seconds=30,
     clients={
         "order-service": HmacClientIdentity(shared_secret=orders_secret),
@@ -29,17 +32,23 @@ multi_client_config = HmacConfig(
 )
 
 simple_app = FastAPI()
-simple_app.add_middleware(HardenHmacMiddleware, config=multi_client_config)
+install_hmac_exception_handler(simple_app)
+hmac_validate = HmacValidate(multi_client_config)
 
 
-@simple_app.get("/api/hello")
+@simple_app.get("/api/hello", dependencies=[Depends(hmac_validate)])
 async def hello() -> dict[str, str]:
     return {"message": "Hello from HardenHMAC!"}
 
 
-@simple_app.post("/api/echo")
+@simple_app.post("/api/echo", dependencies=[Depends(hmac_validate)])
 async def echo(body: dict) -> dict:
     return {"echo": body}
+
+
+@simple_app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 # ── Option B: Multi-tenant server with secret resolver ──

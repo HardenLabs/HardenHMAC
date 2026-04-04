@@ -18,7 +18,7 @@ config = HmacConfig(
             shared_secret=orders_secret,
         ),
         "payment-service": HmacTargetConfig(
-            base_url="http://localhost:8000",
+            base_url="http://localhost:8001",
             shared_secret=payments_secret,
             timestamp_tolerance_seconds=60,
         ),

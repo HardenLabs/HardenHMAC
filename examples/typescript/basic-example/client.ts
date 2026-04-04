@@ -17,7 +17,7 @@ const config = createHmacConfig(ordersSecret, {
       sharedSecret: ordersSecret,
     },
     "payment-service": {
-      baseUrl: "http://localhost:3000",
+      baseUrl: "http://localhost:3001",
       sharedSecret: paymentsSecret,
       timestampToleranceSeconds: 60,
     },

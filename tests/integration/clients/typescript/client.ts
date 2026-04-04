@@ -12,6 +12,7 @@ import {
   CLIENT_ID_HEADER,
   FetchAdapter,
   AxiosAdapter,
+  noneSignedHeadersConfig,
 } from "@hardenlabs/hmac";
 import type { HttpAdapter } from "@hardenlabs/hmac";
 
@@ -24,9 +25,13 @@ const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
 
 const mySecret: string = rawConfig.clients[CLIENT_ID].sharedSecret;
 const ports: Record<string, number> = rawConfig.ports;
+const sharedSecret: string = rawConfig.sharedSecret;
+const resolverPorts: Record<string, number> = rawConfig.resolverPorts ?? {};
+const globalPorts: Record<string, number> = rawConfig.globalPorts ?? {};
 
 const servers = ["csharp", "python", "typescript", "go"];
 const hmacConfig = createHmacConfig(mySecret);
+const noneHmacConfig = createHmacConfig(mySecret, { signedHeaders: noneSignedHeadersConfig() });
 
 const results: string[] = [];
 
@@ -51,19 +56,30 @@ async function makeRequest(
   path: string,
   body?: string,
   config?: ReturnType<typeof createHmacConfig>,
+  options?: { clientId?: string | null; timestamp?: number; expect4xx?: boolean },
 ): Promise<void> {
   const cfg = config ?? hmacConfig;
+  const clientId = options?.clientId === undefined ? CLIENT_ID : options.clientId;
+  const expect4xx = options?.expect4xx ?? false;
   try {
-    const headers: Record<string, string> = {
-      [CLIENT_ID_HEADER.toLowerCase()]: CLIENT_ID,
-    };
-    if (body) headers["content-type"] = "application/json";
+    const headers: Record<string, string> = {};
+    if (clientId) {
+      headers[CLIENT_ID_HEADER.toLowerCase()] = clientId;
+    }
+    if (body !== undefined && body !== "") headers["content-type"] = "application/json";
 
-    const sigHeaders = signRequestHeaders(cfg, method, path, body ?? "", headers);
+    const sigHeaders = signRequestHeaders(cfg, method, path, body ?? "", headers, options?.timestamp);
     const merged = { ...headers, ...sigHeaders };
 
     const resp = await adapter.request(`${baseUrl}${path}`, method, body, merged);
-    if (resp.status === 200) {
+    if (expect4xx) {
+      if (resp.status >= 400 && resp.status < 500) {
+        results.push(`PASS ${tag} -> ${serverName} ${method} ${path} (${resp.status})`);
+      } else {
+        const text = await resp.text();
+        results.push(`FAIL ${tag} -> ${serverName} ${method} ${path} (expected 4xx, got ${resp.status}): ${text}`);
+      }
+    } else if (resp.status === 200) {
       results.push(`PASS ${tag} -> ${serverName} ${method} ${path} (${resp.status})`);
     } else {
       const text = await resp.text();
@@ -129,12 +145,39 @@ for (const server of servers) {
   // Granular validation tests (plain requests, no HMAC)
   await makePlainRequest(CLIENT_ID, serverName, baseUrl, "GET", "/health", 200);
   await makePlainRequest(`${CLIENT_ID}/nohmac`, serverName, baseUrl, "GET", "/api/hello", 0); // any 4xx
+
+  // IT-3: Fallback secret (sign with sharedSecret, NO X-Harden-Client-Id)
+  const fallbackConfig = createHmacConfig(sharedSecret);
+  await makeRequest(fetchAdapter, "typescript-client/fetch/fallback", serverName, baseUrl, "GET", "/api/hello", undefined, fallbackConfig, { clientId: null });
+  await makeRequest(axiosAdapter, "typescript-client/axios/fallback", serverName, baseUrl, "GET", "/api/hello", undefined, fallbackConfig, { clientId: null });
+
+  // IT-4: Unknown client rejection
+  const bogusSecret = btoa("wrong-secret-for-unknown-client!!!");
+  const bogusConfig = createHmacConfig(bogusSecret);
+  await makeRequest(fetchAdapter, "typescript-client/fetch/unknown-client", serverName, baseUrl, "GET", "/api/hello", undefined, bogusConfig, { clientId: "nonexistent-client", expect4xx: true });
+  await makeRequest(axiosAdapter, "typescript-client/axios/unknown-client", serverName, baseUrl, "GET", "/api/hello", undefined, bogusConfig, { clientId: "nonexistent-client", expect4xx: true });
+
+  // IT-5: Stale timestamp (300s in the past)
+  const staleTs = Math.floor(Date.now() / 1000) - 300;
+  await makeRequest(fetchAdapter, "typescript-client/fetch/stale-ts", serverName, baseUrl, "GET", "/api/hello", undefined, undefined, { timestamp: staleTs, expect4xx: true });
+  await makeRequest(axiosAdapter, "typescript-client/axios/stale-ts", serverName, baseUrl, "GET", "/api/hello", undefined, undefined, { timestamp: staleTs, expect4xx: true });
+
+  // IT-8: Empty body POST
+  await makeRequest(fetchAdapter, "typescript-client/fetch/empty-body", serverName, baseUrl, "POST", "/api/echo", "");
+  await makeRequest(axiosAdapter, "typescript-client/axios/empty-body", serverName, baseUrl, "POST", "/api/echo", "");
+
+  // IT-9: Wrong SignedHeaders (client uses none, server uses default)
+  await makeRequest(fetchAdapter, "typescript-client/fetch/wrong-headers", serverName, baseUrl, "GET", "/api/hello", undefined, noneHmacConfig, { expect4xx: true });
+  await makeRequest(axiosAdapter, "typescript-client/axios/wrong-headers", serverName, baseUrl, "GET", "/api/hello", undefined, noneHmacConfig, { expect4xx: true });
+
+  // IT-10: Query string
+  await makeRequest(fetchAdapter, "typescript-client/fetch/query", serverName, baseUrl, "GET", "/api/hello?foo=bar&baz=1");
+  await makeRequest(axiosAdapter, "typescript-client/axios/query", serverName, baseUrl, "GET", "/api/hello?foo=bar&baz=1");
 }
 
 // ============================================================
 // Shared-secret server tests
 // ============================================================
-const sharedSecret: string = rawConfig.sharedSecret;
 const sharedPorts: Record<string, number> = rawConfig.sharedPorts ?? {};
 const sharedHmacConfig = createHmacConfig(sharedSecret);
 
@@ -153,6 +196,48 @@ for (const server of servers) {
   // Axios adapter
   await makeRequest(axiosAdapter, "typescript-client/shared/axios", serverName, baseUrl, "GET", "/api/hello", undefined, sharedHmacConfig);
   await makeRequest(axiosAdapter, "typescript-client/shared/axios", serverName, baseUrl, "POST", "/api/echo", postBody, sharedHmacConfig);
+}
+
+// ============================================================
+// Resolver server tests (IT-6)
+// ============================================================
+for (const server of servers) {
+  const resolverPort = resolverPorts[server];
+  if (resolverPort === undefined) continue;
+
+  const serverName = `${server}-resolver`;
+  const baseUrl = `http://localhost:${resolverPort}`;
+  const postBody = JSON.stringify({ from: CLIENT_ID, test: "integration-resolver" });
+
+  await makeRequest(fetchAdapter, "typescript-client/fetch", serverName, baseUrl, "GET", "/api/hello");
+  await makeRequest(fetchAdapter, "typescript-client/fetch", serverName, baseUrl, "POST", "/api/echo", postBody);
+  await makeRequest(axiosAdapter, "typescript-client/axios", serverName, baseUrl, "GET", "/api/hello");
+  await makeRequest(axiosAdapter, "typescript-client/axios", serverName, baseUrl, "POST", "/api/echo", postBody);
+}
+
+// ============================================================
+// Global middleware server tests (IT-7)
+// ============================================================
+for (const server of servers) {
+  const globalPort = globalPorts[server];
+  if (globalPort === undefined) continue;
+
+  const serverName = `${server}-global`;
+  const baseUrl = `http://localhost:${globalPort}`;
+  const postBody = JSON.stringify({ from: CLIENT_ID, test: "integration-global" });
+
+  // Signed requests should succeed
+  await makeRequest(fetchAdapter, "typescript-client/fetch", serverName, baseUrl, "GET", "/api/hello");
+  await makeRequest(fetchAdapter, "typescript-client/fetch", serverName, baseUrl, "POST", "/api/echo", postBody);
+  await makeRequest(axiosAdapter, "typescript-client/axios", serverName, baseUrl, "GET", "/api/hello");
+  await makeRequest(axiosAdapter, "typescript-client/axios", serverName, baseUrl, "POST", "/api/echo", postBody);
+
+  // Signed GET /health should succeed (global mode protects ALL routes)
+  await makeRequest(fetchAdapter, "typescript-client/fetch", serverName, baseUrl, "GET", "/health");
+  await makeRequest(axiosAdapter, "typescript-client/axios", serverName, baseUrl, "GET", "/health");
+
+  // Unsigned GET /health should be rejected (global mode protects ALL routes)
+  await makePlainRequest(`${CLIENT_ID}/nohmac`, serverName, baseUrl, "GET", "/health", 0);
 }
 
 for (const result of results) {

@@ -17,9 +17,9 @@ type SecretResolver func(r *http.Request) (string, error)
 //
 // Resolution order for the shared secret:
 //  1. secretResolver (if non-nil) -- use result if non-empty
-//  2. X-Harden-Client-Id header + found in config.Clients -- use that client's secret
-//  3. X-Harden-Client-Id header + NOT in config.Clients -- 401 unknown_client
-//  4. No X-Harden-Client-Id -- fall back to config.SharedSecretBase64
+//  2. X-Harden-Client-Id header + config.Clients is non-empty + client found -- use that client's secret
+//  3. X-Harden-Client-Id header + config.Clients is non-empty + client NOT found -- 401 unknown_client
+//  4. No X-Harden-Client-Id, or config.Clients is empty/nil -- fall back to config.SharedSecretBase64
 //  5. Nothing available -- 401 no_secret
 //
 // Error responses are JSON: {"error": "...", "message": "..."}.
@@ -110,11 +110,9 @@ func resolveSecret(config *HmacConfig, secretResolver SecretResolver, r *http.Re
 
 	// 2-3. Check X-Harden-Client-Id header
 	clientID := r.Header.Get(ClientIdHeader)
-	if clientID != "" {
-		if config.Clients != nil {
-			if client, ok := config.Clients[clientID]; ok {
-				return client.SharedSecret, nil
-			}
+	if clientID != "" && len(config.Clients) > 0 {
+		if client, ok := config.Clients[clientID]; ok {
+			return client.SharedSecret, nil
 		}
 		return "", &resolveError{
 			statusCode: http.StatusUnauthorized,

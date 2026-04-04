@@ -207,7 +207,7 @@ class HmacValidate:
 
         # 2. X-Harden-Client-Id header -> look up in config.clients
         client_id = request.headers.get(CLIENT_ID_HEADER.lower())
-        if client_id:
+        if client_id and self.config.clients:
             if client_id in self.config.clients:
                 client_identity = self.config.clients[client_id]
                 if client_identity.shared_secret:

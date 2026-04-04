@@ -185,7 +185,7 @@ public sealed class HardenHmacMiddleware
 
         // 2. X-Harden-Client-Id header → look up in config.Clients
         var clientId = context.Request.Headers[HardenHmacConstants.ClientIdHeader].FirstOrDefault();
-        if (!string.IsNullOrEmpty(clientId))
+        if (!string.IsNullOrEmpty(clientId) && _config.Clients.Count > 0)
         {
             if (_config.Clients.TryGetValue(clientId, out var clientIdentity)
                 && !string.IsNullOrEmpty(clientIdentity.SharedSecret))

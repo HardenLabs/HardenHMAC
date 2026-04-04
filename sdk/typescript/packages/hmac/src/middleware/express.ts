@@ -113,8 +113,8 @@ function buildHmacHandler(
 
       // 2. X-Harden-Client-Id header -> look up in config.clients
       const clientId = requestHeaders[CLIENT_ID_HEADER.toLowerCase()];
-      if (clientId) {
-        const clientIdentity = config.clients?.[clientId];
+      if (clientId && config.clients && Object.keys(config.clients).length > 0) {
+        const clientIdentity = config.clients[clientId];
         if (clientIdentity?.sharedSecret) {
           validateWithSecret(clientIdentity.sharedSecret);
           return;

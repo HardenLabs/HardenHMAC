@@ -13,7 +13,9 @@ dotnet add package HardenLabs.Hmac.AspNetCore  # for middleware
 **Python**
 ```bash
 pip install hardenlabs-hmac
-pip install "hardenlabs-hmac[fastapi]"  # for FastAPI middleware
+pip install "hardenlabs-hmac[fastapi]"   # for FastAPI middleware
+pip install "hardenlabs-hmac[httpx]"     # for httpx client (used by create_sync_client)
+pip install "hardenlabs-hmac[requests]"  # for requests client (used by create_requests_session)
 ```
 
 **TypeScript / Node.js**
@@ -145,27 +147,7 @@ config = HmacConfig(
 )
 
 factory = HmacClientFactory(config)
-with factory.create_sync_client("my-service") as client:
-    response = client.get("/api/hello")  # automatically signed
-```
-
-### Python — Client (requests)
-
-```python
-from hardenlabs_hmac.client import HmacClientFactory
-from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig
-
-config = HmacConfig(
-    targets={
-        "my-service": HmacTargetConfig(
-            base_url="https://api.example.com",
-            shared_secret="your-base64-encoded-secret",
-        ),
-    },
-)
-
-factory = HmacClientFactory(config)
-with factory.create_requests_session("my-service") as client:
+with factory.create_sync_client("my-service") as client:  # requires [httpx]; or create_requests_session() with [requests]
     response = client.get("/api/hello")  # automatically signed
 ```
 
@@ -198,7 +180,7 @@ app.get("/health", (_req, res) => {
 app.listen(3000);
 ```
 
-### TypeScript — Client (fetch)
+### TypeScript — Client
 
 ```typescript
 import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
@@ -212,33 +194,17 @@ const config = createHmacConfig("your-base64-encoded-secret", {
   },
 });
 
+// Uses fetch by default; to use axios, install/import axios and pass it as the
+// second argument: createHmacClientFactory(config, { axios: axios.create() })
 const factory = createHmacClientFactory(config);
 const client = factory.createClient("my-service");
 const response = await client.get("/api/hello"); // automatically signed
 const data = await response.json();
-```
 
-### TypeScript — Client (axios)
-
-```typescript
-import axios from "axios";
-import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
-
-const config = createHmacConfig("your-base64-encoded-secret", {
-  targets: {
-    "my-service": {
-      baseUrl: "https://api.example.com",
-      sharedSecret: "your-base64-encoded-secret",
-    },
-  },
-});
-
-const factory = createHmacClientFactory(config, { axios: axios.create() });
-const client = factory.createClient("my-service");
-const response = await client.post("/api/data", JSON.stringify({ key: "value" }), {
+// POST with body/headers works the same way regardless of adapter
+const postResponse = await client.post("/api/data", JSON.stringify({ key: "value" }), {
   headers: { "Content-Type": "application/json" },
 });
-const data = await response.json();
 ```
 
 ### Go — Server (net/http)

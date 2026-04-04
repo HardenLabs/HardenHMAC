@@ -52,7 +52,7 @@ Routes without `Depends(hmac_validate)` are not validated. Use the global `Harde
 | `HmacValidationHttpError` | Exception raised on validation failure |
 | `HardenHmacMiddleware` | Global middleware (validates all routes) |
 
-## Quick Start — Client (httpx)
+## Quick Start — Client
 
 ```python
 from hardenlabs_hmac.client import HmacClientFactory
@@ -68,27 +68,7 @@ config = HmacConfig(
 )
 
 factory = HmacClientFactory(config)
-with factory.create_sync_client("my-service") as client:
-    response = client.get("/api/hello")  # automatically signed
-```
-
-## Quick Start — Client (requests)
-
-```python
-from hardenlabs_hmac.client import HmacClientFactory
-from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig
-
-config = HmacConfig(
-    targets={
-        "my-service": HmacTargetConfig(
-            base_url="https://api.example.com",
-            shared_secret="your-base64-encoded-secret",
-        ),
-    },
-)
-
-factory = HmacClientFactory(config)
-with factory.create_requests_session("my-service") as client:
+with factory.create_sync_client("my-service") as client:  # requires [httpx]; or create_requests_session() with [requests]
     response = client.get("/api/hello")  # automatically signed
 ```
 

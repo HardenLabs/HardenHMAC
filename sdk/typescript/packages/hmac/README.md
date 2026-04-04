@@ -49,7 +49,7 @@ Routes without `hmacValidate` in their middleware chain are not validated. Use `
 | `createHmacValidateMiddleware(config, secretResolver?)` | Per-route middleware |
 | `hardenHmacMiddleware(config, secretResolver?)` | Global middleware (validates all routes) |
 
-## Quick Start — Client (fetch)
+## Quick Start — Client
 
 ```typescript
 import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
@@ -63,30 +63,12 @@ const config = createHmacConfig("your-base64-encoded-secret", {
   },
 });
 
+// Uses fetch by default; to use axios, install/import axios and pass it as the
+// second argument: createHmacClientFactory(config, { axios: axios.create() })
 const factory = createHmacClientFactory(config);
 const client = factory.createClient("my-service");
 const response = await client.get("/api/hello"); // automatically signed
 const data = await response.json();
-```
-
-## Quick Start — Client (axios)
-
-```typescript
-import axios from "axios";
-import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
-
-const config = createHmacConfig("your-base64-encoded-secret", {
-  targets: {
-    "my-service": {
-      baseUrl: "https://api.example.com",
-      sharedSecret: "your-base64-encoded-secret",
-    },
-  },
-});
-
-const factory = createHmacClientFactory(config, { axios: axios.create() });
-const client = factory.createClient("my-service");
-const response = await client.get("/api/hello"); // automatically signed
 ```
 
 ## Documentation

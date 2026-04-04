@@ -113,6 +113,8 @@ if $has_dotnet; then
     dotnet build "$SCRIPT_DIR/servers/csharp/Server.csproj" -c Release --nologo -v q 2>&1 | tail -1
     echo "  Building C# client..."
     dotnet build "$SCRIPT_DIR/clients/csharp/Client.csproj" -c Release --nologo -v q 2>&1 | tail -1
+    echo "  Building C# multi-target client..."
+    dotnet build "$SCRIPT_DIR/clients/csharp-multitarget/Client.csproj" -c Release --nologo -v q 2>&1 | tail -1
 fi
 
 if $has_python; then
@@ -132,6 +134,9 @@ if $has_node; then
 
     echo "  Installing TypeScript client dependencies..."
     (cd "$SCRIPT_DIR/clients/typescript" && npm install --silent 2>&1 | tail -1)
+
+    echo "  Installing TypeScript multi-target client dependencies..."
+    (cd "$SCRIPT_DIR/clients/typescript-multitarget" && npm install --silent 2>&1 | tail -1)
 fi
 
 if $has_go; then
@@ -139,6 +144,8 @@ if $has_go; then
     (cd "$SCRIPT_DIR/servers/go" && go build -o /dev/null . 2>&1 | tail -1)
     echo "  Building Go client..."
     (cd "$SCRIPT_DIR/clients/go" && go build -o /dev/null . 2>&1 | tail -1)
+    echo "  Building Go multi-target client..."
+    (cd "$SCRIPT_DIR/clients/go-multitarget" && go build -o /dev/null . 2>&1 | tail -1)
 fi
 
 echo ""
@@ -312,6 +319,33 @@ fi
 echo ""
 
 # ============================================================
+# Run multi-target clients
+# ============================================================
+echo "=== Running multi-target clients ==="
+
+if $has_dotnet; then
+    run_client "C# multi-target client" \
+        "dotnet run --project '$SCRIPT_DIR/clients/csharp-multitarget/Client.csproj' -c Release --no-build --nologo"
+fi
+
+if $has_python; then
+    run_client "Python multi-target client" \
+        "python3 '$SCRIPT_DIR/clients/python-multitarget/client.py'"
+fi
+
+if $has_node; then
+    run_client "TypeScript multi-target client" \
+        "cd '$SCRIPT_DIR/clients/typescript-multitarget' && npx tsx client.ts"
+fi
+
+if $has_go; then
+    run_client "Go multi-target client" \
+        "cd '$SCRIPT_DIR/clients/go-multitarget' && go run ."
+fi
+
+echo ""
+
+# ============================================================
 # Results summary
 # ============================================================
 echo "=== Results Matrix ==="
@@ -417,6 +451,68 @@ for client in "csharp-client/shared" "python-client/shared/httpx" "python-client
         row="$row$(printf " | %-15s" "$cell")"
     done
     printf "%-30s%s\n" "$client" "$row"
+done
+
+echo ""
+echo "--- Multi-target factory tests ---"
+echo ""
+printf "%-35s | %-15s | %-15s | %-15s | %-15s\n" "" "csharp-server" "python-server" "ts-server" "go-server"
+printf "%-35s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "-----------------------------------" "---------------" "---------------" "---------------" "---------------"
+
+for client in "csharp-multitarget" "python-multitarget" "typescript-multitarget" "go-multitarget"; do
+    row=""
+    for server in "csharp-server" "python-server" "typescript-server" "go-server"; do
+        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
+        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
+
+        get_status="--"
+        post_status="--"
+
+        if echo "$get_result" | grep -q "^PASS"; then
+            get_status="OK"
+        elif echo "$get_result" | grep -q "^FAIL"; then
+            get_status="FAIL"
+        fi
+
+        if echo "$post_result" | grep -q "^PASS"; then
+            post_status="OK"
+        elif echo "$post_result" | grep -q "^FAIL"; then
+            post_status="FAIL"
+        fi
+
+        cell="${get_status}/${post_status}"
+        row="$row$(printf " | %-15s" "$cell")"
+    done
+    printf "%-35s%s\n" "$client" "$row"
+done
+
+echo ""
+
+# Multi-target cross-client and negative tests
+for client_tag in "csharp-multitarget" "python-multitarget" "typescript-multitarget" "go-multitarget"; do
+    for cross_id in "csharp-client" "go-client"; do
+        result=$(echo "$ALL_RESULTS" | grep "$client_tag/cross($cross_id)" | head -1)
+        if [ -n "$result" ]; then
+            if echo "$result" | grep -q "^PASS"; then
+                printf "  %-33s cross(%s) -> python-server: OK\n" "$client_tag" "$cross_id"
+            elif echo "$result" | grep -q "^FAIL"; then
+                printf "  %-33s cross(%s) -> python-server: FAIL\n" "$client_tag" "$cross_id"
+            elif echo "$result" | grep -q "^SKIP"; then
+                printf "  %-33s cross(%s) -> python-server: --\n" "$client_tag" "$cross_id"
+            fi
+        fi
+    done
+
+    wrong_result=$(echo "$ALL_RESULTS" | grep "$client_tag/wrong-secret" | head -1)
+    if [ -n "$wrong_result" ]; then
+        if echo "$wrong_result" | grep -q "^PASS"; then
+            printf "  %-33s wrong-secret -> python-server: OK (4xx)\n" "$client_tag"
+        elif echo "$wrong_result" | grep -q "^FAIL"; then
+            printf "  %-33s wrong-secret -> python-server: FAIL\n" "$client_tag"
+        elif echo "$wrong_result" | grep -q "^SKIP"; then
+            printf "  %-33s wrong-secret -> python-server: --\n" "$client_tag"
+        fi
+    fi
 done
 
 echo ""

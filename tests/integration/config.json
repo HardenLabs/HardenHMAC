@@ -17,5 +17,25 @@
     "python": 9201,
     "typescript": 9202,
     "go": 9203
+  },
+  "multiTargetTests": {
+    "targets": {
+      "csharp-client": {
+        "baseUrl": "http://localhost:9100",
+        "sharedSecret": "Y3NoYXJwLWNsaWVudC1zZWNyZXQta2V5LTMyYnl0ZXM="
+      },
+      "python-client": {
+        "baseUrl": "http://localhost:9101",
+        "sharedSecret": "cHl0aG9uLWNsaWVudC1zZWNyZXQta2V5LTMyYnl0ZXM="
+      },
+      "typescript-client": {
+        "baseUrl": "http://localhost:9102",
+        "sharedSecret": "dHlwZXNjcmlwdC1jbGllbnQtc2VjcmV0LWtleS0zMmI="
+      },
+      "go-client": {
+        "baseUrl": "http://localhost:9103",
+        "sharedSecret": "Z28tY2xpZW50LXNlY3JldC1rZXktMzItYnl0ZXMhISE="
+      }
+    }
   }
 }

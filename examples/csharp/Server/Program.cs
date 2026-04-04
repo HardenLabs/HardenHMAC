@@ -24,16 +24,20 @@ builder.Services.AddHardenHmac(config);
 
 var app = builder.Build();
 
-// All incoming requests are validated against the shared secret
+// Enable HMAC middleware (opt-in model: only endpoints with HmacValidateAttribute are validated)
 app.UseHardenHmac();
 
-app.MapGet("/api/hello", () => Results.Ok(new { message = "Hello from HardenHMAC!" }));
+app.MapGet("/api/hello", () => Results.Ok(new { message = "Hello from HardenHMAC!" }))
+    .WithMetadata(new HmacValidateAttribute());
 
 app.MapPost("/api/echo", async (HttpRequest request) =>
 {
     using var reader = new StreamReader(request.Body);
     var body = await reader.ReadToEndAsync();
     return Results.Ok(new { echo = body });
-});
+}).WithMetadata(new HmacValidateAttribute());
+
+// Health endpoint — no HMAC validation required
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.Run();

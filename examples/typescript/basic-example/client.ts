@@ -8,7 +8,7 @@ import { createHmacClientFactory, createHmacConfig } from "@hardenlabs/hmac";
 
 // Same secrets as the server — in production, load from environment/secrets manager
 const ordersSecret = Buffer.from("orders-secret-key-32-bytes!!!!!").toString("base64");
-const paymentsSecret = Buffer.from("payments-secret-key-32-bytes!!!").toString("base64");
+const paymentsSecret = Buffer.from("payments-secret-key-32-bytes!!").toString("base64");
 
 const config = createHmacConfig(ordersSecret, {
   targets: {

@@ -9,7 +9,6 @@ import type { Request } from "express";
 import {
   createHmacConfig,
   hardenHmacMiddleware,
-  noneSignedHeadersConfig,
   type SecretResolver,
 } from "@hardenlabs/hmac";
 
@@ -25,7 +24,6 @@ const paymentsSecret = Buffer.from("payments-secret-key-32-bytes!!").toString(
 );
 
 const config = createHmacConfig(defaultSecret, {
-  signedHeaders: noneSignedHeadersConfig(),
   timestampToleranceSeconds: 30,
 });
 

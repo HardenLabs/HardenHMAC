@@ -13,7 +13,9 @@ dotnet add package HardenLabs.Hmac.AspNetCore  # for middleware
 **Python**
 ```bash
 pip install hardenlabs-hmac
-pip install "hardenlabs-hmac[fastapi]"  # for FastAPI middleware
+pip install "hardenlabs-hmac[fastapi]"   # for FastAPI middleware
+pip install "hardenlabs-hmac[httpx]"     # for httpx client (used by create_sync_client)
+pip install "hardenlabs-hmac[requests]"  # for requests client (used by create_requests_session)
 ```
 
 **TypeScript / Node.js**
@@ -145,7 +147,7 @@ config = HmacConfig(
 )
 
 factory = HmacClientFactory(config)
-with factory.create_sync_client("my-service") as client:  # or create_requests_session()
+with factory.create_sync_client("my-service") as client:  # requires [httpx]; or create_requests_session() with [requests]
     response = client.get("/api/hello")  # automatically signed
 ```
 
@@ -192,11 +194,17 @@ const config = createHmacConfig("your-base64-encoded-secret", {
   },
 });
 
-// Uses fetch by default; pass { axios: axios.create() } for axios
+// Uses fetch by default; to use axios, install/import axios and pass it as the
+// second argument: createHmacClientFactory(config, { axios: axios.create() })
 const factory = createHmacClientFactory(config);
 const client = factory.createClient("my-service");
 const response = await client.get("/api/hello"); // automatically signed
 const data = await response.json();
+
+// POST with body/headers works the same way regardless of adapter
+const postResponse = await client.post("/api/data", JSON.stringify({ key: "value" }), {
+  headers: { "Content-Type": "application/json" },
+});
 ```
 
 ### Go — Server (net/http)

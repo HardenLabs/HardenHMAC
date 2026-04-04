@@ -68,7 +68,7 @@ config = HmacConfig(
 )
 
 factory = HmacClientFactory(config)
-with factory.create_sync_client("my-service") as client:  # or create_requests_session()
+with factory.create_sync_client("my-service") as client:  # requires [httpx]; or create_requests_session() with [requests]
     response = client.get("/api/hello")  # automatically signed
 ```
 

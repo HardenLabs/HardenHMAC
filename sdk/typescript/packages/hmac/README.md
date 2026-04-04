@@ -63,7 +63,8 @@ const config = createHmacConfig("your-base64-encoded-secret", {
   },
 });
 
-// Uses fetch by default; pass { axios: axios.create() } for axios
+// Uses fetch by default; to use axios, install/import axios and pass it as the
+// second argument: createHmacClientFactory(config, { axios: axios.create() })
 const factory = createHmacClientFactory(config);
 const client = factory.createClient("my-service");
 const response = await client.get("/api/hello"); // automatically signed

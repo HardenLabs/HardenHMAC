@@ -1,5 +1,11 @@
 # HardenHMAC
 
+[![CI](https://github.com/HardenLabs/HardenHMAC/actions/workflows/pr-validate.yml/badge.svg)](https://github.com/HardenLabs/HardenHMAC/actions/workflows/pr-validate.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/HardenLabs/HardenHMAC/blob/main/LICENSE)
+[![NuGet](https://img.shields.io/nuget/v/HardenLabs.Hmac)](https://www.nuget.org/packages/HardenLabs.Hmac)
+[![PyPI](https://img.shields.io/pypi/v/hardenlabs-hmac)](https://pypi.org/project/hardenlabs-hmac)
+[![npm](https://img.shields.io/npm/v/@hardenlabs/hmac)](https://www.npmjs.com/package/@hardenlabs/hmac)
+
 Cross-language HMAC-SHA256 request signing with a defined canonical string format. Guaranteed identical signatures across C#, Python, TypeScript, and Go through a shared test vector suite.
 
 ## Installation

@@ -90,14 +90,16 @@ echo ""
 # Kill any leftover processes on test ports
 # ============================================================
 for port_name in csharp python typescript go; do
-    port_num=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports'].get('$port_name', ''))" 2>/dev/null || true)
-    if [ -n "$port_num" ]; then
-        existing=$(lsof -ti:"$port_num" 2>/dev/null || true)
-        if [ -n "$existing" ]; then
-            echo "Killing existing process on port $port_num..."
-            echo "$existing" | xargs kill -9 2>/dev/null || true
+    for port_key in ports sharedPorts; do
+        port_num=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json')).get('$port_key', {}).get('$port_name', ''))" 2>/dev/null || true)
+        if [ -n "$port_num" ]; then
+            existing=$(lsof -ti:"$port_num" 2>/dev/null || true)
+            if [ -n "$existing" ]; then
+                echo "Killing existing process on port $port_num..."
+                echo "$existing" | xargs kill -9 2>/dev/null || true
+            fi
         fi
-    fi
+    done
 done
 sleep 1
 
@@ -175,6 +177,41 @@ if $has_go; then
 fi
 
 echo ""
+
+# ============================================================
+# Start shared-secret servers (HMAC_MODE=shared)
+# ============================================================
+echo "=== Starting shared-secret servers ==="
+
+if $has_dotnet; then
+    echo "  Starting C# shared server..."
+    HMAC_MODE=shared dotnet run --project "$SCRIPT_DIR/servers/csharp/Server.csproj" -c Release --no-build --nologo \
+        > "$SCRIPT_DIR/servers/csharp/server-shared.log" 2>&1 &
+    PIDS+=($!)
+fi
+
+if $has_python; then
+    echo "  Starting Python shared server..."
+    HMAC_MODE=shared python3 "$SCRIPT_DIR/servers/python/server.py" \
+        > "$SCRIPT_DIR/servers/python/server-shared.log" 2>&1 &
+    PIDS+=($!)
+fi
+
+if $has_node; then
+    echo "  Starting TypeScript shared server..."
+    (cd "$SCRIPT_DIR/servers/typescript" && HMAC_MODE=shared npx tsx server.ts) \
+        > "$SCRIPT_DIR/servers/typescript/server-shared.log" 2>&1 &
+    PIDS+=($!)
+fi
+
+if $has_go; then
+    echo "  Starting Go shared server..."
+    (cd "$SCRIPT_DIR/servers/go" && HMAC_MODE=shared go run .) \
+        > "$SCRIPT_DIR/servers/go/server-shared.log" 2>&1 &
+    PIDS+=($!)
+fi
+
+echo ""
 echo "=== Waiting for servers ==="
 
 # Read ports from config.json
@@ -182,6 +219,11 @@ CSHARP_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.
 PYTHON_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports']['python'])" 2>/dev/null || echo 9101)
 TS_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports']['typescript'])" 2>/dev/null || echo 9102)
 GO_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['ports']['go'])" 2>/dev/null || echo 9103)
+
+CSHARP_SHARED_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['sharedPorts']['csharp'])" 2>/dev/null || echo 9200)
+PYTHON_SHARED_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['sharedPorts']['python'])" 2>/dev/null || echo 9201)
+TS_SHARED_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['sharedPorts']['typescript'])" 2>/dev/null || echo 9202)
+GO_SHARED_PORT=$(python3 -c "import json; print(json.load(open('$SCRIPT_DIR/config.json'))['sharedPorts']['go'])" 2>/dev/null || echo 9203)
 
 SERVER_READY_CSHARP=false
 SERVER_READY_PYTHON=false
@@ -210,6 +252,23 @@ if $has_go; then
     if wait_for_port "$GO_PORT" "Go server" 15; then
         SERVER_READY_GO=true
     fi
+fi
+
+# Wait for shared-secret servers
+if $has_dotnet; then
+    wait_for_port "$CSHARP_SHARED_PORT" "C# shared server" 30 || true
+fi
+
+if $has_python; then
+    wait_for_port "$PYTHON_SHARED_PORT" "Python shared server" 15 || true
+fi
+
+if $has_node; then
+    wait_for_port "$TS_SHARED_PORT" "TypeScript shared server" 15 || true
+fi
+
+if $has_go; then
+    wait_for_port "$GO_SHARED_PORT" "Go shared server" 15 || true
 fi
 
 echo ""
@@ -325,6 +384,39 @@ for client in "csharp-client" "python-client" "typescript-client" "go-client"; d
         row="$row$(printf " | %-15s" "$cell")"
     done
     printf "%-20s%s\n" "$client" "$row"
+done
+
+echo ""
+echo "--- Shared-secret servers (no Clients dictionary) ---"
+echo ""
+printf "%-30s | %-15s | %-15s | %-15s | %-15s\n" "" "csharp-shared" "python-shared" "ts-shared" "go-shared"
+printf "%-30s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "------------------------------" "---------------" "---------------" "---------------" "---------------"
+
+for client in "csharp-client/shared" "python-client/shared/httpx" "python-client/shared/requests" "typescript-client/shared/fetch" "typescript-client/shared/axios" "go-client/shared"; do
+    row=""
+    for server in "csharp-shared" "python-shared" "typescript-shared" "go-shared"; do
+        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
+        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
+
+        get_status="--"
+        post_status="--"
+
+        if echo "$get_result" | grep -q "^PASS"; then
+            get_status="OK"
+        elif echo "$get_result" | grep -q "^FAIL"; then
+            get_status="FAIL"
+        fi
+
+        if echo "$post_result" | grep -q "^PASS"; then
+            post_status="OK"
+        elif echo "$post_result" | grep -q "^FAIL"; then
+            post_status="FAIL"
+        fi
+
+        cell="${get_status}/${post_status}"
+        row="$row$(printf " | %-15s" "$cell")"
+    done
+    printf "%-30s%s\n" "$client" "$row"
 done
 
 echo ""

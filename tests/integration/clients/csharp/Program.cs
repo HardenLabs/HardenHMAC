@@ -172,6 +172,86 @@ foreach (var server in servers)
     }
 }
 
+// ============================================================
+// Shared-secret server tests
+// ============================================================
+var sharedSecret = configDoc.RootElement.GetProperty("sharedSecret").GetString()!;
+var sharedPorts = new Dictionary<string, int>();
+foreach (var port in configDoc.RootElement.GetProperty("sharedPorts").EnumerateObject())
+{
+    sharedPorts[port.Name] = port.Value.GetInt32();
+}
+
+foreach (var server in servers)
+{
+    if (!sharedPorts.TryGetValue(server, out var sharedPort))
+        continue;
+
+    var serverName = $"{server}-shared";
+    var baseUrl = $"http://localhost:{sharedPort}";
+
+    var sharedHmacConfig = new HmacConfig
+    {
+        SharedSecretBase64 = sharedSecret,
+    };
+
+    var sharedHandler = new HardenHmacDelegatingHandler(sharedHmacConfig, new HttpClientHandler(), clientId: ClientId);
+    using var sharedClient = new HttpClient(sharedHandler)
+    {
+        BaseAddress = new Uri(baseUrl),
+    };
+
+    // GET /api/hello
+    try
+    {
+        var response = await sharedClient.GetAsync("/api/hello");
+        var status = (int)response.StatusCode;
+        if (status == 200)
+        {
+            results.Add($"PASS {ClientId}/shared -> {serverName} GET /api/hello ({status})");
+        }
+        else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            results.Add($"FAIL {ClientId}/shared -> {serverName} GET /api/hello ({status}): {body}");
+        }
+    }
+    catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+    {
+        results.Add($"SKIP {ClientId}/shared -> {serverName} GET /api/hello (server not running)");
+    }
+    catch (Exception ex)
+    {
+        results.Add($"FAIL {ClientId}/shared -> {serverName} GET /api/hello (ERR): {ex.Message}");
+    }
+
+    // POST /api/echo
+    try
+    {
+        var postBody = JsonSerializer.Serialize(new { from = ClientId, test = "integration-shared" });
+        var content = new StringContent(postBody, Encoding.UTF8, "application/json");
+        var response = await sharedClient.PostAsync("/api/echo", content);
+        var status = (int)response.StatusCode;
+        if (status == 200)
+        {
+            results.Add($"PASS {ClientId}/shared -> {serverName} POST /api/echo ({status})");
+        }
+        else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            results.Add($"FAIL {ClientId}/shared -> {serverName} POST /api/echo ({status}): {body}");
+        }
+    }
+    catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException)
+    {
+        results.Add($"SKIP {ClientId}/shared -> {serverName} POST /api/echo (server not running)");
+    }
+    catch (Exception ex)
+    {
+        results.Add($"FAIL {ClientId}/shared -> {serverName} POST /api/echo (ERR): {ex.Message}");
+    }
+}
+
 foreach (var result in results)
 {
     Console.WriteLine(result);

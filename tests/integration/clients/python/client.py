@@ -32,13 +32,15 @@ results: list[str] = []
 
 def make_request_httpx(
     tag: str, server_name: str, base_url: str, method: str, path: str, body: str | None = None,
+    config: HmacConfig | None = None,
 ) -> None:
     """Sign and send a request using httpx."""
+    cfg = config or hmac_config
     try:
         headers: dict[str, str] = {CLIENT_ID_HEADER: CLIENT_ID}
         if body:
             headers["Content-Type"] = "application/json"
-        sig_headers = sign_request_headers(hmac_config, method, path, body or "", headers)
+        sig_headers = sign_request_headers(cfg, method, path, body or "", headers)
         headers.update(sig_headers)
 
         if method == "GET":
@@ -58,10 +60,12 @@ def make_request_httpx(
 
 def make_request_requests(
     tag: str, server_name: str, base_url: str, method: str, path: str, body: str | None = None,
+    config: HmacConfig | None = None,
 ) -> None:
     """Sign and send a request using requests + HmacAuth."""
+    cfg = config or hmac_config
     try:
-        auth = HmacAuth(hmac_config, client_id=CLIENT_ID)
+        auth = HmacAuth(cfg, client_id=CLIENT_ID)
         url = f"{base_url}{path}"
         headers: dict[str, str] = {}
         if body:
@@ -134,6 +138,41 @@ for server in servers:
     # Granular validation tests (plain requests, no HMAC)
     make_request_plain(CLIENT_ID, server_name, base_url, "GET", "/health", expected_status=200)
     make_request_plain(CLIENT_ID + "/nohmac", server_name, base_url, "GET", "/api/hello", expected_status=0)  # any 4xx
+
+# ============================================================
+# Shared-secret server tests
+# ============================================================
+shared_secret = raw_config["sharedSecret"]
+shared_ports = raw_config.get("sharedPorts", {})
+shared_hmac_config = HmacConfig(shared_secret_base64=shared_secret)
+
+for server in servers:
+    port = shared_ports.get(server)
+    if port is None:
+        continue
+    server_name = f"{server}-shared"
+    base_url = f"http://localhost:{port}"
+    post_body = json.dumps({"from": CLIENT_ID, "test": "integration-shared"})
+
+    # httpx adapter with shared secret
+    make_request_httpx(
+        "python-client/shared/httpx", server_name, base_url, "GET", "/api/hello",
+        config=shared_hmac_config,
+    )
+    make_request_httpx(
+        "python-client/shared/httpx", server_name, base_url, "POST", "/api/echo", post_body,
+        config=shared_hmac_config,
+    )
+
+    # requests adapter with shared secret
+    make_request_requests(
+        "python-client/shared/requests", server_name, base_url, "GET", "/api/hello",
+        config=shared_hmac_config,
+    )
+    make_request_requests(
+        "python-client/shared/requests", server_name, base_url, "POST", "/api/echo", post_body,
+        config=shared_hmac_config,
+    )
 
 for result in results:
     print(result)

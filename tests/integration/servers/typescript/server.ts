@@ -16,20 +16,35 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const configPath = resolve(__dirname, "..", "..", "config.json");
 const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
 
-const port: number = rawConfig.ports.typescript;
+const hmacMode = process.env.HMAC_MODE;
 
-// Build clients dictionary
-const clients: Record<string, HmacClientIdentity> = {};
-for (const [name, data] of Object.entries(rawConfig.clients)) {
-  clients[name] = { sharedSecret: (data as { sharedSecret: string }).sharedSecret };
+let port: number;
+let hmacConfig: HmacConfig;
+
+if (hmacMode === "shared") {
+  port = rawConfig.sharedPorts.typescript;
+  hmacConfig = {
+    sharedSecretBase64: rawConfig.sharedSecret,
+    clients: {},
+    signedHeaders: defaultSignedHeadersConfig(),
+    timestampToleranceSeconds: DEFAULT_TIMESTAMP_TOLERANCE_SECONDS,
+  };
+} else {
+  port = rawConfig.ports.typescript;
+
+  // Build clients dictionary
+  const clients: Record<string, HmacClientIdentity> = {};
+  for (const [name, data] of Object.entries(rawConfig.clients)) {
+    clients[name] = { sharedSecret: (data as { sharedSecret: string }).sharedSecret };
+  }
+
+  hmacConfig = {
+    sharedSecretBase64: "",
+    clients,
+    signedHeaders: defaultSignedHeadersConfig(),
+    timestampToleranceSeconds: DEFAULT_TIMESTAMP_TOLERANCE_SECONDS,
+  };
 }
-
-const hmacConfig: HmacConfig = {
-  sharedSecretBase64: "",
-  clients,
-  signedHeaders: defaultSignedHeadersConfig(),
-  timestampToleranceSeconds: DEFAULT_TIMESTAMP_TOLERANCE_SECONDS,
-};
 
 const app = express();
 

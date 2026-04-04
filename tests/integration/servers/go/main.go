@@ -13,10 +13,12 @@ import (
 )
 
 type configFile struct {
-	Clients map[string]struct {
+	SharedSecret string `json:"sharedSecret"`
+	Clients      map[string]struct {
 		SharedSecret string `json:"sharedSecret"`
 	} `json:"clients"`
-	Ports map[string]int `json:"ports"`
+	Ports       map[string]int `json:"ports"`
+	SharedPorts map[string]int `json:"sharedPorts"`
 }
 
 func loadConfig() (*configFile, error) {
@@ -52,18 +54,32 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	port := cfg.Ports["go"]
+	hmacMode := os.Getenv("HMAC_MODE")
 
-	// Build HmacConfig with Clients from config.json
-	clients := make(map[string]hardenhmac.HmacClientIdentity)
-	for name, c := range cfg.Clients {
-		clients[name] = hardenhmac.HmacClientIdentity{SharedSecret: c.SharedSecret}
-	}
+	var port int
+	var hmacConfig *hardenhmac.HmacConfig
 
-	hmacConfig := &hardenhmac.HmacConfig{
-		TimestampToleranceSeconds: 30,
-		SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
-		Clients:                   clients,
+	if hmacMode == "shared" {
+		port = cfg.SharedPorts["go"]
+		hmacConfig = &hardenhmac.HmacConfig{
+			SharedSecretBase64:        cfg.SharedSecret,
+			TimestampToleranceSeconds: 30,
+			SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+		}
+	} else {
+		port = cfg.Ports["go"]
+
+		// Build HmacConfig with Clients from config.json
+		clients := make(map[string]hardenhmac.HmacClientIdentity)
+		for name, c := range cfg.Clients {
+			clients[name] = hardenhmac.HmacClientIdentity{SharedSecret: c.SharedSecret}
+		}
+
+		hmacConfig = &hardenhmac.HmacConfig{
+			TimestampToleranceSeconds: 30,
+			SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+			Clients:                   clients,
+		}
 	}
 
 	// Per-route HMAC validation wrapper

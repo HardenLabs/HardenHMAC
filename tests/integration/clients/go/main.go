@@ -17,10 +17,12 @@ import (
 const clientID = "go-client"
 
 type configFile struct {
-	Clients map[string]struct {
+	SharedSecret string `json:"sharedSecret"`
+	Clients      map[string]struct {
 		SharedSecret string `json:"sharedSecret"`
 	} `json:"clients"`
-	Ports map[string]int `json:"ports"`
+	Ports       map[string]int `json:"ports"`
+	SharedPorts map[string]int `json:"sharedPorts"`
 }
 
 func loadConfig() (*configFile, error) {
@@ -170,6 +172,74 @@ func main() {
 				fmt.Printf("PASS %s/nohmac -> %s GET /api/hello (%d)\n", clientID, s.name, resp.StatusCode)
 			} else {
 				fmt.Printf("FAIL %s/nohmac -> %s GET /api/hello (expected 4xx, got %d): %s\n", clientID, s.name, resp.StatusCode, string(body))
+			}
+		}
+	}
+
+	// ============================================================
+	// Shared-secret server tests
+	// ============================================================
+	sharedServers := []serverTarget{
+		{"csharp-shared", cfg.SharedPorts["csharp"]},
+		{"python-shared", cfg.SharedPorts["python"]},
+		{"typescript-shared", cfg.SharedPorts["typescript"]},
+		{"go-shared", cfg.SharedPorts["go"]},
+	}
+
+	sharedHmacConfig := &hardenhmac.HmacConfig{
+		SharedSecretBase64: cfg.SharedSecret,
+		SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
+	}
+
+	for _, s := range sharedServers {
+		baseURL := fmt.Sprintf("http://localhost:%d", s.port)
+
+		transport := &hardenhmac.SigningTransport{
+			Config:     sharedHmacConfig,
+			TargetName: clientID,
+		}
+		client := &hardenhmac.Client{
+			Client:  &http.Client{Transport: transport},
+			BaseURL: baseURL,
+		}
+
+		// GET /api/hello
+		resp, err := client.Get("/api/hello")
+		if err != nil {
+			var netErr *net.OpError
+			if errors.As(err, &netErr) {
+				fmt.Printf("SKIP %s/shared -> %s GET /api/hello (server not running)\n", clientID, s.name)
+				fmt.Printf("SKIP %s/shared -> %s POST /api/echo (server not running)\n", clientID, s.name)
+				continue
+			}
+			fmt.Printf("FAIL %s/shared -> %s GET /api/hello: %v\n", clientID, s.name, err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				fmt.Printf("PASS %s/shared -> %s GET /api/hello (%d)\n", clientID, s.name, resp.StatusCode)
+			} else {
+				fmt.Printf("FAIL %s/shared -> %s GET /api/hello (%d): %s\n", clientID, s.name, resp.StatusCode, string(body))
+			}
+		}
+
+		// POST /api/echo
+		postBody := fmt.Sprintf(`{"from":"%s","test":"integration-shared"}`, clientID)
+		resp, err = client.Post("/api/echo", "application/json", postBody)
+		if err != nil {
+			var netErr *net.OpError
+			if errors.As(err, &netErr) {
+				fmt.Printf("SKIP %s/shared -> %s POST /api/echo (server not running)\n", clientID, s.name)
+				continue
+			}
+			fmt.Printf("FAIL %s/shared -> %s POST /api/echo: %v\n", clientID, s.name, err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				fmt.Printf("PASS %s/shared -> %s POST /api/echo (%d)\n", clientID, s.name, resp.StatusCode)
+			} else {
+				fmt.Printf("FAIL %s/shared -> %s POST /api/echo (%d): %s\n", clientID, s.name, resp.StatusCode, string(body))
 			}
 		}
 	}

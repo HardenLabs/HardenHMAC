@@ -1,4 +1,5 @@
 {
+  "sharedSecret": "c2hhcmVkLXNlY3JldC1mb3ItYWxsLWNsaWVudHMtMzJi",
   "clients": {
     "csharp-client": { "sharedSecret": "Y3NoYXJwLWNsaWVudC1zZWNyZXQta2V5LTMyYnl0ZXM=" },
     "python-client": { "sharedSecret": "cHl0aG9uLWNsaWVudC1zZWNyZXQta2V5LTMyYnl0ZXM=" },
@@ -10,5 +11,11 @@
     "python": 9101,
     "typescript": 9102,
     "go": 9103
+  },
+  "sharedPorts": {
+    "csharp": 9200,
+    "python": 9201,
+    "typescript": 9202,
+    "go": 9203
   }
 }

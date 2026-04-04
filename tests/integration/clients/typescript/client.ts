@@ -50,14 +50,16 @@ async function makeRequest(
   method: string,
   path: string,
   body?: string,
+  config?: ReturnType<typeof createHmacConfig>,
 ): Promise<void> {
+  const cfg = config ?? hmacConfig;
   try {
     const headers: Record<string, string> = {
       [CLIENT_ID_HEADER.toLowerCase()]: CLIENT_ID,
     };
     if (body) headers["content-type"] = "application/json";
 
-    const sigHeaders = signRequestHeaders(hmacConfig, method, path, body ?? "", headers);
+    const sigHeaders = signRequestHeaders(cfg, method, path, body ?? "", headers);
     const merged = { ...headers, ...sigHeaders };
 
     const resp = await adapter.request(`${baseUrl}${path}`, method, body, merged);
@@ -127,6 +129,30 @@ for (const server of servers) {
   // Granular validation tests (plain requests, no HMAC)
   await makePlainRequest(CLIENT_ID, serverName, baseUrl, "GET", "/health", 200);
   await makePlainRequest(`${CLIENT_ID}/nohmac`, serverName, baseUrl, "GET", "/api/hello", 0); // any 4xx
+}
+
+// ============================================================
+// Shared-secret server tests
+// ============================================================
+const sharedSecret: string = rawConfig.sharedSecret;
+const sharedPorts: Record<string, number> = rawConfig.sharedPorts ?? {};
+const sharedHmacConfig = createHmacConfig(sharedSecret);
+
+for (const server of servers) {
+  const sharedPort = sharedPorts[server];
+  if (sharedPort === undefined) continue;
+
+  const serverName = `${server}-shared`;
+  const baseUrl = `http://localhost:${sharedPort}`;
+  const postBody = JSON.stringify({ from: CLIENT_ID, test: "integration-shared" });
+
+  // Fetch adapter
+  await makeRequest(fetchAdapter, "typescript-client/shared/fetch", serverName, baseUrl, "GET", "/api/hello", undefined, sharedHmacConfig);
+  await makeRequest(fetchAdapter, "typescript-client/shared/fetch", serverName, baseUrl, "POST", "/api/echo", postBody, sharedHmacConfig);
+
+  // Axios adapter
+  await makeRequest(axiosAdapter, "typescript-client/shared/axios", serverName, baseUrl, "GET", "/api/hello", undefined, sharedHmacConfig);
+  await makeRequest(axiosAdapter, "typescript-client/shared/axios", serverName, baseUrl, "POST", "/api/echo", postBody, sharedHmacConfig);
 }
 
 for (const result of results) {

@@ -37,20 +37,36 @@ while (searchDir != null)
 var json = File.ReadAllText(configPath);
 var configDoc = JsonDocument.Parse(json);
 
-var port = configDoc.RootElement.GetProperty("ports").GetProperty("csharp").GetInt32();
+var hmacMode = Environment.GetEnvironmentVariable("HMAC_MODE");
+int port;
+HmacConfig hmacConfig;
 
-// Build Clients dictionary from config
-var clientsDict = new Dictionary<string, HmacClientIdentity>();
-foreach (var client in configDoc.RootElement.GetProperty("clients").EnumerateObject())
+if (hmacMode == "shared")
 {
-    var secret = client.Value.GetProperty("sharedSecret").GetString()!;
-    clientsDict[client.Name] = new HmacClientIdentity { SharedSecret = secret };
+    port = configDoc.RootElement.GetProperty("sharedPorts").GetProperty("csharp").GetInt32();
+    var sharedSecret = configDoc.RootElement.GetProperty("sharedSecret").GetString()!;
+    hmacConfig = new HmacConfig
+    {
+        SharedSecretBase64 = sharedSecret,
+    };
 }
-
-var hmacConfig = new HmacConfig
+else
 {
-    Clients = clientsDict,
-};
+    port = configDoc.RootElement.GetProperty("ports").GetProperty("csharp").GetInt32();
+
+    // Build Clients dictionary from config
+    var clientsDict = new Dictionary<string, HmacClientIdentity>();
+    foreach (var client in configDoc.RootElement.GetProperty("clients").EnumerateObject())
+    {
+        var secret = client.Value.GetProperty("sharedSecret").GetString()!;
+        clientsDict[client.Name] = new HmacClientIdentity { SharedSecret = secret };
+    }
+
+    hmacConfig = new HmacConfig
+    {
+        Clients = clientsDict,
+    };
+}
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHardenHmac(hmacConfig);

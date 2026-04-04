@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -20,14 +21,20 @@ config_path = Path(__file__).resolve().parents[2] / "config.json"
 with open(config_path) as f:
     raw_config = json.load(f)
 
-port = raw_config["ports"]["python"]
+hmac_mode = os.environ.get("HMAC_MODE")
 
-# Build Clients dictionary
-clients = {}
-for client_name, client_data in raw_config["clients"].items():
-    clients[client_name] = HmacClientIdentity(shared_secret=client_data["sharedSecret"])
+if hmac_mode == "shared":
+    port = raw_config["sharedPorts"]["python"]
+    hmac_config = HmacConfig(shared_secret_base64=raw_config["sharedSecret"])
+else:
+    port = raw_config["ports"]["python"]
 
-hmac_config = HmacConfig(clients=clients)
+    # Build Clients dictionary
+    clients = {}
+    for client_name, client_data in raw_config["clients"].items():
+        clients[client_name] = HmacClientIdentity(shared_secret=client_data["sharedSecret"])
+
+    hmac_config = HmacConfig(clients=clients)
 hmac_validate = HmacValidate(hmac_config)
 
 app = FastAPI()

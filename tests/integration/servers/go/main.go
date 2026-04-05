@@ -17,8 +17,10 @@ type configFile struct {
 	Clients      map[string]struct {
 		SharedSecret string `json:"sharedSecret"`
 	} `json:"clients"`
-	Ports       map[string]int `json:"ports"`
-	SharedPorts map[string]int `json:"sharedPorts"`
+	Ports         map[string]int `json:"ports"`
+	SharedPorts   map[string]int `json:"sharedPorts"`
+	ResolverPorts map[string]int `json:"resolverPorts"`
+	GlobalPorts   map[string]int `json:"globalPorts"`
 }
 
 func loadConfig() (*configFile, error) {
@@ -58,6 +60,8 @@ func main() {
 
 	var port int
 	var hmacConfig *hardenhmac.HmacConfig
+	var secretResolver hardenhmac.SecretResolver
+	useGlobalMiddleware := false
 
 	if hmacMode == "shared" {
 		port = cfg.SharedPorts["go"]
@@ -65,6 +69,53 @@ func main() {
 			SharedSecretBase64:        cfg.SharedSecret,
 			TimestampToleranceSeconds: 30,
 			SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+		}
+	} else if hmacMode == "resolver" {
+		port = cfg.ResolverPorts["go"]
+
+		// Build lookup from config
+		clientSecrets := make(map[string]string)
+		for name, c := range cfg.Clients {
+			clientSecrets[name] = c.SharedSecret
+		}
+
+		// Build Clients map (so unknown client IDs are rejected)
+		clients := make(map[string]hardenhmac.HmacClientIdentity)
+		for name, c := range cfg.Clients {
+			clients[name] = hardenhmac.HmacClientIdentity{SharedSecret: c.SharedSecret}
+		}
+
+		hmacConfig = &hardenhmac.HmacConfig{
+			SharedSecretBase64:        cfg.SharedSecret,
+			TimestampToleranceSeconds: 30,
+			SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+			Clients:                   clients,
+		}
+
+		secretResolver = func(r *http.Request) (string, error) {
+			clientID := r.Header.Get("X-Harden-Client-Id")
+			if clientID != "" {
+				if secret, ok := clientSecrets[clientID]; ok {
+					return secret, nil
+				}
+			}
+			return "", nil
+		}
+	} else if hmacMode == "global" {
+		port = cfg.GlobalPorts["go"]
+		useGlobalMiddleware = true
+
+		// Build HmacConfig with Clients from config.json
+		clients := make(map[string]hardenhmac.HmacClientIdentity)
+		for name, c := range cfg.Clients {
+			clients[name] = hardenhmac.HmacClientIdentity{SharedSecret: c.SharedSecret}
+		}
+
+		hmacConfig = &hardenhmac.HmacConfig{
+			SharedSecretBase64:        cfg.SharedSecret,
+			TimestampToleranceSeconds: 30,
+			SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+			Clients:                   clients,
 		}
 	} else {
 		port = cfg.Ports["go"]
@@ -76,46 +127,83 @@ func main() {
 		}
 
 		hmacConfig = &hardenhmac.HmacConfig{
+			SharedSecretBase64:        cfg.SharedSecret,
 			TimestampToleranceSeconds: 30,
 			SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
 			Clients:                   clients,
 		}
 	}
 
-	// Per-route HMAC validation wrapper
-	validate := hardenhmac.NewHmacValidateHandler(hmacConfig, nil)
-
 	mux := http.NewServeMux()
 
-	// Protected endpoints — wrapped with validate
-	mux.Handle("/api/hello", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"message": "hello from go"})
-	})))
-
-	mux.Handle("/api/echo", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		defer r.Body.Close()
-
-		var parsed interface{}
-		if err := json.Unmarshal(body, &parsed); err != nil {
-			parsed = string(body)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"echo":     parsed,
-			"language": "go",
+	if useGlobalMiddleware {
+		// Global mode: all routes defined without per-route validation
+		mux.HandleFunc("/api/hello", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"message": "hello from go"})
 		})
-	})))
 
-	// Unprotected endpoint — no wrapper, no HMAC required
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "language": "go"})
-	})
+		mux.HandleFunc("/api/echo", func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			defer r.Body.Close()
 
-	handler := mux
+			var parsed interface{}
+			if err := json.Unmarshal(body, &parsed); err != nil {
+				parsed = string(body)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"echo":     parsed,
+				"language": "go",
+			})
+		})
+
+		// In global mode, /health is also protected (wrapped by global middleware)
+		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "language": "go"})
+		})
+	} else {
+		// Per-route HMAC validation wrapper
+		validate := hardenhmac.NewHmacValidateHandler(hmacConfig, secretResolver)
+
+		// Protected endpoints — wrapped with validate
+		mux.Handle("/api/hello", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"message": "hello from go"})
+		})))
+
+		mux.Handle("/api/echo", validate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			defer r.Body.Close()
+
+			var parsed interface{}
+			if err := json.Unmarshal(body, &parsed); err != nil {
+				parsed = string(body)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"echo":     parsed,
+				"language": "go",
+			})
+		})))
+
+		// Unprotected endpoint — no wrapper, no HMAC required
+		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "language": "go"})
+		})
+	}
+
+	var handler http.Handler
+	if useGlobalMiddleware {
+		// Wrap entire mux with global HMAC middleware
+		handler = hardenhmac.NewHmacMiddleware(hmacConfig, nil)(mux)
+	} else {
+		handler = mux
+	}
 
 	addr := fmt.Sprintf("0.0.0.0:%d", port)
 	log.Printf("Go server listening on port %d", port)

@@ -40,6 +40,8 @@ var configDoc = JsonDocument.Parse(json);
 var hmacMode = Environment.GetEnvironmentVariable("HMAC_MODE");
 int port;
 HmacConfig hmacConfig;
+Func<HttpContext, Task<string?>>? secretResolver = null;
+bool useGlobalMiddleware = false;
 
 if (hmacMode == "shared")
 {
@@ -48,6 +50,62 @@ if (hmacMode == "shared")
     hmacConfig = new HmacConfig
     {
         SharedSecretBase64 = sharedSecret,
+    };
+}
+else if (hmacMode == "resolver")
+{
+    port = configDoc.RootElement.GetProperty("resolverPorts").GetProperty("csharp").GetInt32();
+    var sharedSecret = configDoc.RootElement.GetProperty("sharedSecret").GetString()!;
+
+    // Build lookup from config
+    var clientSecrets = new Dictionary<string, string>();
+    foreach (var client in configDoc.RootElement.GetProperty("clients").EnumerateObject())
+    {
+        clientSecrets[client.Name] = client.Value.GetProperty("sharedSecret").GetString()!;
+    }
+
+    // Build Clients dictionary (so unknown client IDs are rejected)
+    var clientsDict = new Dictionary<string, HmacClientIdentity>();
+    foreach (var client in configDoc.RootElement.GetProperty("clients").EnumerateObject())
+    {
+        var s = client.Value.GetProperty("sharedSecret").GetString()!;
+        clientsDict[client.Name] = new HmacClientIdentity { SharedSecret = s };
+    }
+
+    hmacConfig = new HmacConfig
+    {
+        SharedSecretBase64 = sharedSecret,
+        Clients = clientsDict,
+    };
+
+    secretResolver = (HttpContext ctx) =>
+    {
+        var clientId = ctx.Request.Headers["X-Harden-Client-Id"].FirstOrDefault();
+        if (clientId != null && clientSecrets.TryGetValue(clientId, out var secret))
+        {
+            return Task.FromResult<string?>(secret);
+        }
+        return Task.FromResult<string?>(null);
+    };
+}
+else if (hmacMode == "global")
+{
+    port = configDoc.RootElement.GetProperty("globalPorts").GetProperty("csharp").GetInt32();
+    var sharedSecret = configDoc.RootElement.GetProperty("sharedSecret").GetString()!;
+    useGlobalMiddleware = true;
+
+    // Build Clients dictionary from config
+    var clientsDict = new Dictionary<string, HmacClientIdentity>();
+    foreach (var client in configDoc.RootElement.GetProperty("clients").EnumerateObject())
+    {
+        var secret = client.Value.GetProperty("sharedSecret").GetString()!;
+        clientsDict[client.Name] = new HmacClientIdentity { SharedSecret = secret };
+    }
+
+    hmacConfig = new HmacConfig
+    {
+        SharedSecretBase64 = sharedSecret,
+        Clients = clientsDict,
     };
 }
 else
@@ -64,40 +122,72 @@ else
 
     hmacConfig = new HmacConfig
     {
+        SharedSecretBase64 = configDoc.RootElement.GetProperty("sharedSecret").GetString()!,
         Clients = clientsDict,
     };
 }
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHardenHmac(hmacConfig);
+builder.Services.AddHardenHmac(hmacConfig, secretResolver);
 
 var app = builder.Build();
 app.UseRouting();
 app.UseHardenHmac();
 
-// Protected endpoints — require [HmacValidate]
-app.MapGet("/api/hello", () => Results.Json(new { message = "hello from csharp" }))
-    .WithMetadata(new HmacValidateAttribute());
-
-app.MapPost("/api/echo", async (HttpRequest request) =>
+if (useGlobalMiddleware)
 {
-    using var reader = new StreamReader(request.Body);
-    var body = await reader.ReadToEndAsync();
+    // Global mode: ALL endpoints require HMAC (attribute on every route)
+    app.MapGet("/api/hello", () => Results.Json(new { message = "hello from csharp" }))
+        .WithMetadata(new HmacValidateAttribute());
 
-    object? parsed;
-    try
+    app.MapPost("/api/echo", async (HttpRequest request) =>
     {
-        parsed = JsonSerializer.Deserialize<object>(body);
-    }
-    catch
+        using var reader = new StreamReader(request.Body);
+        var body = await reader.ReadToEndAsync();
+
+        object? parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<object>(body);
+        }
+        catch
+        {
+            parsed = body;
+        }
+
+        return Results.Json(new { echo = parsed, language = "csharp" });
+    }).WithMetadata(new HmacValidateAttribute());
+
+    // In global mode, /health is also protected
+    app.MapGet("/health", () => Results.Json(new { status = "healthy", language = "csharp" }))
+        .WithMetadata(new HmacValidateAttribute());
+}
+else
+{
+    // Per-route mode: only protected endpoints have [HmacValidate]
+    app.MapGet("/api/hello", () => Results.Json(new { message = "hello from csharp" }))
+        .WithMetadata(new HmacValidateAttribute());
+
+    app.MapPost("/api/echo", async (HttpRequest request) =>
     {
-        parsed = body;
-    }
+        using var reader = new StreamReader(request.Body);
+        var body = await reader.ReadToEndAsync();
 
-    return Results.Json(new { echo = parsed, language = "csharp" });
-}).WithMetadata(new HmacValidateAttribute());
+        object? parsed;
+        try
+        {
+            parsed = JsonSerializer.Deserialize<object>(body);
+        }
+        catch
+        {
+            parsed = body;
+        }
 
-// Unprotected endpoint — no attribute, no HMAC required
-app.MapGet("/health", () => Results.Json(new { status = "healthy", language = "csharp" }));
+        return Results.Json(new { echo = parsed, language = "csharp" });
+    }).WithMetadata(new HmacValidateAttribute());
+
+    // Unprotected endpoint — no attribute, no HMAC required
+    app.MapGet("/health", () => Results.Json(new { status = "healthy", language = "csharp" }));
+}
 
 app.Run($"http://0.0.0.0:{port}");

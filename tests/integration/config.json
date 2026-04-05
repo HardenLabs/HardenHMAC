@@ -18,6 +18,18 @@
     "typescript": 9202,
     "go": 9203
   },
+  "resolverPorts": {
+    "csharp": 9300,
+    "python": 9301,
+    "typescript": 9302,
+    "go": 9303
+  },
+  "globalPorts": {
+    "csharp": 9400,
+    "python": 9401,
+    "typescript": 9402,
+    "go": 9403
+  },
   "multiTargetTests": {
     "targets": {
       "csharp-client": {

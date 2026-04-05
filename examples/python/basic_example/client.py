@@ -8,7 +8,7 @@ from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig, SignedHeadersCo
 
 # Same secrets as the server — in production, load from environment/secrets manager
 orders_secret = base64.b64encode(b"orders-secret-key-32-bytes!!!!!").decode()
-payments_secret = base64.b64encode(b"payments-secret-key-32-bytes!!!").decode()
+payments_secret = base64.b64encode(b"payments-secret-key-32-bytes!!").decode()
 
 config = HmacConfig(
     signed_headers=SignedHeadersConfig.default(),
@@ -18,7 +18,7 @@ config = HmacConfig(
             shared_secret=orders_secret,
         ),
         "payment-service": HmacTargetConfig(
-            base_url="http://localhost:8000",
+            base_url="http://localhost:8001",
             shared_secret=payments_secret,
             timestamp_tolerance_seconds=60,
         ),

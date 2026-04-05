@@ -356,21 +356,21 @@ config := &hardenhmac.HmacConfig{
 
 ### Secret Resolver (Dynamic)
 
-For servers that look up secrets dynamically per-request (e.g., from a database):
+For servers that look up secrets dynamically per-request (e.g., from a database). The resolver runs before the `Clients` dictionary, so it can override or extend the built-in resolution:
 
 ```csharp
 // C#
 services.AddHardenHmac(config, secretResolver: async (httpContext) => {
-    var clientId = httpContext.Request.Headers["X-Client-Id"].FirstOrDefault();
-    return await LookupSecret(clientId);
+    var clientId = httpContext.Request.Headers["X-Harden-Client-Id"].FirstOrDefault();
+    return await LookupSecretFromDatabase(clientId);
 });
 ```
 
 ```python
 # Python
 async def resolve_secret(request):
-    client_id = request.headers.get("x-client-id")
-    return await lookup_secret(client_id)
+    client_id = request.headers.get("x-harden-client-id")
+    return await lookup_secret_from_database(client_id)
 
 hmac_validate = HmacValidate(config, secret_resolver=resolve_secret)
 ```
@@ -378,16 +378,16 @@ hmac_validate = HmacValidate(config, secret_resolver=resolve_secret)
 ```typescript
 // TypeScript
 const hmacValidate = createHmacValidateMiddleware(config, (req) => {
-  const clientId = req.headers["x-client-id"] as string;
-  return lookupSecret(clientId);
+  const clientId = req.headers["x-harden-client-id"] as string;
+  return lookupSecretFromDatabase(clientId);
 });
 ```
 
 ```go
 // Go
 resolver := func(r *http.Request) (string, error) {
-	clientID := r.Header.Get("X-Client-Id")
-	return lookupSecret(clientID)
+	clientID := r.Header.Get("X-Harden-Client-Id")
+	return lookupSecretFromDatabase(clientID)
 }
 validate := hardenhmac.NewHmacValidateHandler(config, resolver)
 ```

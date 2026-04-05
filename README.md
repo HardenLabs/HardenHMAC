@@ -44,9 +44,14 @@ using HardenLabs.Hmac.AspNetCore;
 
 var config = new HmacConfig
 {
-    SharedSecretBase64 = "your-base64-encoded-secret",
+    SharedSecretBase64 = "fallback-base64-secret",  // used when no X-Harden-Client-Id
     SignedHeaders = SignedHeadersConfig.Default,
-    TimestampToleranceSeconds = 30
+    TimestampToleranceSeconds = 30,
+    Clients = new Dictionary<string, HmacClientIdentity>
+    {
+        ["order-service"] = new HmacClientIdentity { SharedSecret = "orders-base64-secret" },
+        ["payment-service"] = new HmacClientIdentity { SharedSecret = "payments-base64-secret" },
+    },
 };
 
 var builder = WebApplication.CreateBuilder(args);
@@ -113,12 +118,16 @@ var response = await client.GetAsync("/api/hello"); // automatically signed
 ```python
 from fastapi import Depends, FastAPI, Request
 from hardenlabs_hmac import HmacValidate, install_hmac_exception_handler
-from hardenlabs_hmac.config import HmacConfig, SignedHeadersConfig
+from hardenlabs_hmac.config import HmacClientIdentity, HmacConfig, SignedHeadersConfig
 
 config = HmacConfig(
-    shared_secret_base64="your-base64-encoded-secret",
+    shared_secret_base64="fallback-base64-secret",  # used when no X-Harden-Client-Id
     signed_headers=SignedHeadersConfig.default(),
     timestamp_tolerance_seconds=30,
+    clients={
+        "order-service": HmacClientIdentity(shared_secret="orders-base64-secret"),
+        "payment-service": HmacClientIdentity(shared_secret="payments-base64-secret"),
+    },
 )
 
 hmac_validate = HmacValidate(config)
@@ -163,8 +172,12 @@ with factory.create_sync_client("my-service") as client:  # requires [httpx]; or
 import express from "express";
 import { createHmacConfig, createHmacValidateMiddleware } from "@hardenlabs/hmac";
 
-const config = createHmacConfig("your-base64-encoded-secret", {
+const config = createHmacConfig("fallback-base64-secret", {
   timestampToleranceSeconds: 30,
+  clients: {
+    "order-service": { sharedSecret: "orders-base64-secret" },
+    "payment-service": { sharedSecret: "payments-base64-secret" },
+  },
 });
 
 const app = express();
@@ -225,8 +238,12 @@ import (
 
 func main() {
 	config := &hardenhmac.HmacConfig{
-		SharedSecretBase64: "your-base64-encoded-secret",
+		SharedSecretBase64: "fallback-base64-secret", // used when no X-Harden-Client-Id
 		SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
+		Clients: map[string]hardenhmac.HmacClientIdentity{
+			"order-service":   {SharedSecret: "orders-base64-secret"},
+			"payment-service": {SharedSecret: "payments-base64-secret"},
+		},
 	}
 
 	validate := hardenhmac.NewHmacValidateHandler(config, nil)

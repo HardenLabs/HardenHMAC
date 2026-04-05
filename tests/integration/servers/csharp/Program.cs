@@ -64,9 +64,18 @@ else if (hmacMode == "resolver")
         clientSecrets[client.Name] = client.Value.GetProperty("sharedSecret").GetString()!;
     }
 
+    // Build Clients dictionary (so unknown client IDs are rejected)
+    var clientsDict = new Dictionary<string, HmacClientIdentity>();
+    foreach (var client in configDoc.RootElement.GetProperty("clients").EnumerateObject())
+    {
+        var s = client.Value.GetProperty("sharedSecret").GetString()!;
+        clientsDict[client.Name] = new HmacClientIdentity { SharedSecret = s };
+    }
+
     hmacConfig = new HmacConfig
     {
         SharedSecretBase64 = sharedSecret,
+        Clients = clientsDict,
     };
 
     secretResolver = (HttpContext ctx) =>

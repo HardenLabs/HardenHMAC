@@ -79,10 +79,17 @@ func main() {
 			clientSecrets[name] = c.SharedSecret
 		}
 
+		// Build Clients map (so unknown client IDs are rejected)
+		clients := make(map[string]hardenhmac.HmacClientIdentity)
+		for name, c := range cfg.Clients {
+			clients[name] = hardenhmac.HmacClientIdentity{SharedSecret: c.SharedSecret}
+		}
+
 		hmacConfig = &hardenhmac.HmacConfig{
 			SharedSecretBase64:        cfg.SharedSecret,
 			TimestampToleranceSeconds: 30,
 			SignedHeaders:             hardenhmac.DefaultSignedHeadersConfig(),
+			Clients:                   clients,
 		}
 
 		secretResolver = func(r *http.Request) (string, error) {

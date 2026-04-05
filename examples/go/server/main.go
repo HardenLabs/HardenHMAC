@@ -70,6 +70,7 @@ func main() {
 	//     return "", nil // fall back to config.SharedSecretBase64
 	// }
 	// handler := hardenhmac.NewHmacMiddleware(config, secretResolver)(mux)
+	// log.Fatal(http.ListenAndServe(addr, handler))  // use handler instead of mux
 
 	addr := ":8080"
 	fmt.Printf("Server listening on %s\n", addr)

@@ -3,7 +3,7 @@ using HardenLabs.Hmac.AspNetCore;
 
 // In production, load from appsettings.json (see appsettings.example.json):
 //   builder.Services.AddHardenHmac(builder.Configuration.GetSection("HardenHmac"));
-//   or load from environment: config reads HARDEN_HMAC_* environment variables
+//   or load from environment via .NET configuration binding (e.g. HardenHmac__SharedSecretBase64)
 var ordersSecret = Convert.ToBase64String("orders-secret-key-32-bytes!!!!!"u8.ToArray());
 var paymentsSecret = Convert.ToBase64String("payments-secret-key-32-bytes!!"u8.ToArray());
 var defaultSecret = Convert.ToBase64String("my-shared-secret-key-32-bytes!!"u8.ToArray());
@@ -27,6 +27,7 @@ builder.Services.AddHardenHmac(config);
 var app = builder.Build();
 
 // Enable HMAC middleware (opt-in model: only endpoints with HmacValidateAttribute are validated)
+app.UseRouting();
 app.UseHardenHmac();
 
 app.MapGet("/api/hello", () => Results.Ok(new { message = "Hello from HardenHMAC!" }))

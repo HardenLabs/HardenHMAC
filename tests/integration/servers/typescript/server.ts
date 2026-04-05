@@ -41,9 +41,15 @@ if (hmacMode === "shared") {
     clientSecrets[name] = (data as { sharedSecret: string }).sharedSecret;
   }
 
+  // Build clients dictionary (so unknown client IDs are rejected)
+  const clients: Record<string, HmacClientIdentity> = {};
+  for (const [name, data] of Object.entries(rawConfig.clients)) {
+    clients[name] = { sharedSecret: (data as { sharedSecret: string }).sharedSecret };
+  }
+
   hmacConfig = {
     sharedSecretBase64: rawConfig.sharedSecret,
-    clients: {},
+    clients,
     signedHeaders: defaultSignedHeadersConfig(),
     timestampToleranceSeconds: DEFAULT_TIMESTAMP_TOLERANCE_SECONDS,
   };

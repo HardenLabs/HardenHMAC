@@ -110,42 +110,42 @@ echo "=== Build phase ==="
 
 if $has_dotnet; then
     echo "  Building C# server..."
-    dotnet build "$SCRIPT_DIR/servers/csharp/Server.csproj" -c Release --nologo -v q 2>&1 | tail -1
+    dotnet build "$SCRIPT_DIR/servers/csharp/Server.csproj" -c Release --nologo -v q > /dev/null 2>&1
     echo "  Building C# client..."
-    dotnet build "$SCRIPT_DIR/clients/csharp/Client.csproj" -c Release --nologo -v q 2>&1 | tail -1
+    dotnet build "$SCRIPT_DIR/clients/csharp/Client.csproj" -c Release --nologo -v q > /dev/null 2>&1
     echo "  Building C# multi-target client..."
-    dotnet build "$SCRIPT_DIR/clients/csharp-multitarget/Client.csproj" -c Release --nologo -v q 2>&1 | tail -1
+    dotnet build "$SCRIPT_DIR/clients/csharp-multitarget/Client.csproj" -c Release --nologo -v q > /dev/null 2>&1
 fi
 
 if $has_python; then
     echo "  Checking Python dependencies..."
     python3 -c "import fastapi, uvicorn, httpx" 2>/dev/null || {
         echo "  Installing Python dependencies..."
-        pip3 install -q fastapi uvicorn httpx 2>&1 | tail -1
+        pip3 install -q fastapi uvicorn httpx > /dev/null 2>&1
     }
 fi
 
 if $has_node; then
     echo "  Building TypeScript SDK..."
-    (cd "$SCRIPT_DIR/../../sdk/typescript/packages/hmac" && npm install --silent 2>&1 | tail -1 && npm run build --silent 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/../../sdk/typescript/packages/hmac" && npm install --silent > /dev/null 2>&1 && npm run build --silent > /dev/null 2>&1)
 
     echo "  Installing TypeScript server dependencies..."
-    (cd "$SCRIPT_DIR/servers/typescript" && npm install --silent 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/servers/typescript" && npm install --silent > /dev/null 2>&1)
 
     echo "  Installing TypeScript client dependencies..."
-    (cd "$SCRIPT_DIR/clients/typescript" && npm install --silent 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/clients/typescript" && npm install --silent > /dev/null 2>&1)
 
     echo "  Installing TypeScript multi-target client dependencies..."
-    (cd "$SCRIPT_DIR/clients/typescript-multitarget" && npm install --silent 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/clients/typescript-multitarget" && npm install --silent > /dev/null 2>&1)
 fi
 
 if $has_go; then
     echo "  Building Go server..."
-    (cd "$SCRIPT_DIR/servers/go" && go build -o /dev/null . 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/servers/go" && go build -o /dev/null . > /dev/null 2>&1)
     echo "  Building Go client..."
-    (cd "$SCRIPT_DIR/clients/go" && go build -o /dev/null . 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/clients/go" && go build -o /dev/null . > /dev/null 2>&1)
     echo "  Building Go multi-target client..."
-    (cd "$SCRIPT_DIR/clients/go-multitarget" && go build -o /dev/null . 2>&1 | tail -1)
+    (cd "$SCRIPT_DIR/clients/go-multitarget" && go build -o /dev/null . > /dev/null 2>&1)
 fi
 
 echo ""

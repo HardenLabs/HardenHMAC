@@ -37,7 +37,15 @@ elif hmac_mode == "resolver":
     for client_name, client_data in raw_config["clients"].items():
         client_secrets[client_name] = client_data["sharedSecret"]
 
-    hmac_config = HmacConfig(shared_secret_base64=raw_config["sharedSecret"])
+    # Build clients dictionary (so unknown client IDs are rejected)
+    clients = {}
+    for client_name, client_data in raw_config["clients"].items():
+        clients[client_name] = HmacClientIdentity(shared_secret=client_data["sharedSecret"])
+
+    hmac_config = HmacConfig(
+        shared_secret_base64=raw_config["sharedSecret"],
+        clients=clients,
+    )
 
     async def secret_resolver(request: Request) -> str | None:
         client_id = request.headers.get("x-harden-client-id")

@@ -305,6 +305,7 @@ func main() {
 		}
 
 		// IT-9: Wrong SignedHeaders (client uses NoneSignedHeadersConfig, server uses Default)
+		// Include Authorization header so signed-headers difference actually matters
 		noneConfig := &hardenhmac.HmacConfig{
 			SharedSecretBase64: mySecret,
 			SignedHeaders:      hardenhmac.NoneSignedHeadersConfig(),
@@ -314,7 +315,9 @@ func main() {
 			TargetName: clientID,
 		}
 		noneClient := &http.Client{Transport: noneTransport}
-		resp, err = noneClient.Get(fmt.Sprintf("%s/api/hello", baseURL))
+		noneReq, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/hello", baseURL), nil)
+		noneReq.Header.Set("Authorization", "Bearer test")
+		resp, err = noneClient.Do(noneReq)
 		if err != nil {
 			var netErr *net.OpError
 			if errors.As(err, &netErr) {

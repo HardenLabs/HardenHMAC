@@ -312,6 +312,7 @@ foreach (var server in servers)
     }
 
     // IT-9: Wrong SignedHeaders (client uses None, server uses Default)
+    // Include Authorization header so signed-headers difference actually matters
     try
     {
         var noneConfig = new HmacConfig
@@ -321,6 +322,7 @@ foreach (var server in servers)
         };
         var noneHandler = new HardenHmacDelegatingHandler(noneConfig, new HttpClientHandler(), clientId: ClientId);
         using var noneClient = new HttpClient(noneHandler) { BaseAddress = new Uri(baseUrl) };
+        noneClient.DefaultRequestHeaders.Add("Authorization", "Bearer test");
         var response = await noneClient.GetAsync("/api/hello");
         var status = (int)response.StatusCode;
         if (status >= 400 && status < 500)
@@ -457,7 +459,8 @@ foreach (var server in servers)
     var serverName = $"{server}-resolver";
     var baseUrl = $"http://localhost:{resolverPort}";
 
-    var resolverHandler = new HardenHmacDelegatingHandler(hmacConfig, new HttpClientHandler(), clientId: ClientId);
+    var resolverHmacConfig = new HmacConfig { SharedSecretBase64 = mySecret };
+    var resolverHandler = new HardenHmacDelegatingHandler(resolverHmacConfig, new HttpClientHandler(), clientId: ClientId);
     using var resolverClient = new HttpClient(resolverHandler) { BaseAddress = new Uri(baseUrl) };
 
     // GET /api/hello
@@ -518,7 +521,8 @@ foreach (var server in servers)
     var serverName = $"{server}-global";
     var baseUrl = $"http://localhost:{globalPort}";
 
-    var globalHandler = new HardenHmacDelegatingHandler(hmacConfig, new HttpClientHandler(), clientId: ClientId);
+    var globalHmacConfig = new HmacConfig { SharedSecretBase64 = mySecret };
+    var globalHandler = new HardenHmacDelegatingHandler(globalHmacConfig, new HttpClientHandler(), clientId: ClientId);
     using var globalClient = new HttpClient(globalHandler) { BaseAddress = new Uri(baseUrl) };
 
     // Signed GET /api/hello

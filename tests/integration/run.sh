@@ -475,8 +475,8 @@ printf "%-20s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "-------
 for client in "csharp-client" "python-client/httpx" "python-client/requests" "typescript-client/fetch" "typescript-client/axios" "go-client"; do
     row=""
     for server in "csharp-server" "python-server" "typescript-server" "go-server"; do
-        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
-        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
+        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1 || true)
+        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1 || true)
 
         get_status="--"
         post_status="--"
@@ -508,8 +508,8 @@ printf "%-20s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "-------
 for client in "csharp-client" "python-client" "typescript-client" "go-client"; do
     row=""
     for server in "csharp-server" "python-server" "typescript-server" "go-server"; do
-        health_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET /health" | head -1)
-        nohmac_result=$(echo "$ALL_RESULTS" | grep "$client/nohmac -> $server GET" | head -1)
+        health_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET /health" | head -1 || true)
+        nohmac_result=$(echo "$ALL_RESULTS" | grep "$client/nohmac -> $server GET" | head -1 || true)
 
         health_status="--"
         nohmac_status="--"
@@ -541,8 +541,8 @@ printf "%-30s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "------------------------------
 for client in "csharp-client/shared" "python-client/shared/httpx" "python-client/shared/requests" "typescript-client/shared/fetch" "typescript-client/shared/axios" "go-client/shared"; do
     row=""
     for server in "csharp-shared" "python-shared" "typescript-shared" "go-shared"; do
-        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
-        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
+        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1 || true)
+        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1 || true)
 
         get_status="--"
         post_status="--"
@@ -574,8 +574,8 @@ printf "%-35s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "------------------------------
 for client in "csharp-multitarget" "python-multitarget" "typescript-multitarget" "go-multitarget"; do
     row=""
     for server in "csharp-server" "python-server" "typescript-server" "go-server"; do
-        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
-        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
+        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1 || true)
+        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1 || true)
 
         get_status="--"
         post_status="--"
@@ -603,7 +603,7 @@ echo ""
 # Multi-target cross-client and negative tests
 for client_tag in "csharp-multitarget" "python-multitarget" "typescript-multitarget" "go-multitarget"; do
     for cross_id in "csharp-client" "go-client"; do
-        result=$(echo "$ALL_RESULTS" | grep "$client_tag/cross($cross_id)" | head -1)
+        result=$(echo "$ALL_RESULTS" | grep "$client_tag/cross($cross_id)" | head -1 || true)
         if [ -n "$result" ]; then
             if echo "$result" | grep -q "^PASS"; then
                 printf "  %-33s cross(%s) -> python-server: OK\n" "$client_tag" "$cross_id"
@@ -615,7 +615,7 @@ for client_tag in "csharp-multitarget" "python-multitarget" "typescript-multitar
         fi
     done
 
-    wrong_result=$(echo "$ALL_RESULTS" | grep "$client_tag/wrong-secret" | head -1)
+    wrong_result=$(echo "$ALL_RESULTS" | grep "$client_tag/wrong-secret" | head -1 || true)
     if [ -n "$wrong_result" ]; then
         if echo "$wrong_result" | grep -q "^PASS"; then
             printf "  %-33s wrong-secret -> python-server: OK (4xx)\n" "$client_tag"
@@ -646,8 +646,8 @@ printf "%-20s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "-------
 for client in "csharp-client" "python-client/httpx" "python-client/requests" "typescript-client/fetch" "typescript-client/axios" "go-client"; do
     row=""
     for server in "csharp-resolver" "python-resolver" "typescript-resolver" "go-resolver"; do
-        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
-        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
+        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1 || true)
+        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1 || true)
         get_status="--"
         post_status="--"
         if echo "$get_result" | grep -q "^PASS"; then get_status="OK"; elif echo "$get_result" | grep -q "^FAIL"; then get_status="FAIL"; fi
@@ -667,8 +667,8 @@ printf "%-20s-+-%-15s-+-%-15s-+-%-15s-+-%-15s\n" "--------------------" "-------
 for client in "csharp-client" "python-client/httpx" "python-client/requests" "typescript-client/fetch" "typescript-client/axios" "go-client"; do
     row=""
     for server in "csharp-global" "python-global" "typescript-global" "go-global"; do
-        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1)
-        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1)
+        get_result=$(echo "$ALL_RESULTS" | grep "$client -> $server GET" | head -1 || true)
+        post_result=$(echo "$ALL_RESULTS" | grep "$client -> $server POST" | head -1 || true)
         get_status="--"
         post_status="--"
         if echo "$get_result" | grep -q "^PASS"; then get_status="OK"; elif echo "$get_result" | grep -q "^FAIL"; then get_status="FAIL"; fi

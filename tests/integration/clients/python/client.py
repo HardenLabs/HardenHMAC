@@ -215,14 +215,36 @@ for server in servers:
     )
 
     # IT-9: Wrong SignedHeaders (client uses noneSignedHeadersConfig, server uses default)
-    make_request_httpx(
-        "python-client/httpx/wrong-headers", server_name, base_url, "GET", "/api/hello",
-        config=none_hmac_config, expect_4xx=True,
-    )
-    make_request_requests(
-        "python-client/requests/wrong-headers", server_name, base_url, "GET", "/api/hello",
-        config=none_hmac_config, expect_4xx=True,
-    )
+    # Include an Authorization header so the signed-headers difference actually matters:
+    # noneSignedHeaders won't include it in the canonical string, but defaultSignedHeaders on
+    # the server will — causing a signature mismatch.
+    wrong_hdr_headers: dict[str, str] = {CLIENT_ID_HEADER: CLIENT_ID, "Authorization": "Bearer test"}
+    wrong_sig = sign_request_headers(none_hmac_config, "GET", "/api/hello", "", wrong_hdr_headers)
+    wrong_hdr_headers.update(wrong_sig)
+    try:
+        resp = httpx.get(f"{base_url}/api/hello", headers=wrong_hdr_headers)
+        if 400 <= resp.status_code < 500:
+            results.append(f"PASS python-client/httpx/wrong-headers -> {server_name} GET /api/hello ({resp.status_code})")
+        else:
+            results.append(f"FAIL python-client/httpx/wrong-headers -> {server_name} GET /api/hello (expected 4xx, got {resp.status_code}): {resp.text}")
+    except httpx.ConnectError:
+        results.append(f"SKIP python-client/httpx/wrong-headers -> {server_name} GET /api/hello (server not running)")
+    except Exception as e:
+        results.append(f"FAIL python-client/httpx/wrong-headers -> {server_name} GET /api/hello (ERR): {e}")
+
+    wrong_hdr_headers2: dict[str, str] = {"Authorization": "Bearer test"}
+    wrong_sig2 = sign_request_headers(none_hmac_config, "GET", "/api/hello", "", wrong_hdr_headers2)
+    wrong_hdr_headers2.update(wrong_sig2)
+    try:
+        resp = requests.get(f"{base_url}/api/hello", headers=wrong_hdr_headers2, auth=HmacAuth(none_hmac_config, client_id=CLIENT_ID))
+        if 400 <= resp.status_code < 500:
+            results.append(f"PASS python-client/requests/wrong-headers -> {server_name} GET /api/hello ({resp.status_code})")
+        else:
+            results.append(f"FAIL python-client/requests/wrong-headers -> {server_name} GET /api/hello (expected 4xx, got {resp.status_code}): {resp.text}")
+    except requests.ConnectionError:
+        results.append(f"SKIP python-client/requests/wrong-headers -> {server_name} GET /api/hello (server not running)")
+    except Exception as e:
+        results.append(f"FAIL python-client/requests/wrong-headers -> {server_name} GET /api/hello (ERR): {e}")
 
     # IT-10: Query string
     make_request_httpx(

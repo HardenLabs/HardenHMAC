@@ -88,6 +88,13 @@ async function makeRequest(
   } catch (e: unknown) {
     if (isConnectionRefused(e) || isAxiosConnectionError(e)) {
       results.push(`SKIP ${tag} -> ${serverName} ${method} ${path} (server not running)`);
+    } else if (expect4xx && typeof e === "object" && e !== null && "response" in e) {
+      const axiosStatus = (e as { response: { status: number } }).response.status;
+      if (axiosStatus >= 400 && axiosStatus < 500) {
+        results.push(`PASS ${tag} -> ${serverName} ${method} ${path} (${axiosStatus})`);
+      } else {
+        results.push(`FAIL ${tag} -> ${serverName} ${method} ${path} (expected 4xx, got ${axiosStatus})`);
+      }
     } else {
       results.push(`FAIL ${tag} -> ${serverName} ${method} ${path} (ERR): ${e}`);
     }
@@ -167,8 +174,40 @@ for (const server of servers) {
   await makeRequest(axiosAdapter, "typescript-client/axios/empty-body", serverName, baseUrl, "POST", "/api/echo", "");
 
   // IT-9: Wrong SignedHeaders (client uses none, server uses default)
-  await makeRequest(fetchAdapter, "typescript-client/fetch/wrong-headers", serverName, baseUrl, "GET", "/api/hello", undefined, noneHmacConfig, { expect4xx: true });
-  await makeRequest(axiosAdapter, "typescript-client/axios/wrong-headers", serverName, baseUrl, "GET", "/api/hello", undefined, noneHmacConfig, { expect4xx: true });
+  // Include Authorization header so signed-headers difference actually matters
+  const wrongHdrHeaders: Record<string, string> = {
+    [CLIENT_ID_HEADER.toLowerCase()]: CLIENT_ID,
+    authorization: "Bearer test",
+  };
+  const wrongSig = signRequestHeaders(noneHmacConfig, "GET", "/api/hello", "", wrongHdrHeaders);
+  const wrongMerged = { ...wrongHdrHeaders, ...wrongSig };
+  try {
+    const wr = await fetchAdapter.request(`${baseUrl}/api/hello`, "GET", undefined, wrongMerged);
+    if (wr.status >= 400 && wr.status < 500) {
+      results.push(`PASS typescript-client/fetch/wrong-headers -> ${serverName} GET /api/hello (${wr.status})`);
+    } else {
+      results.push(`FAIL typescript-client/fetch/wrong-headers -> ${serverName} GET /api/hello (expected 4xx, got ${wr.status}): ${await wr.text()}`);
+    }
+  } catch (e: unknown) {
+    if (isConnectionRefused(e)) results.push(`SKIP typescript-client/fetch/wrong-headers -> ${serverName} GET /api/hello (server not running)`);
+    else results.push(`FAIL typescript-client/fetch/wrong-headers -> ${serverName} GET /api/hello (ERR): ${e}`);
+  }
+  try {
+    const wr2 = await axiosAdapter.request(`${baseUrl}/api/hello`, "GET", undefined, wrongMerged);
+    if (wr2.status >= 400 && wr2.status < 500) {
+      results.push(`PASS typescript-client/axios/wrong-headers -> ${serverName} GET /api/hello (${wr2.status})`);
+    } else {
+      results.push(`FAIL typescript-client/axios/wrong-headers -> ${serverName} GET /api/hello (expected 4xx, got ${wr2.status}): ${await wr2.text()}`);
+    }
+  } catch (e: unknown) {
+    if (isConnectionRefused(e) || isAxiosConnectionError(e)) results.push(`SKIP typescript-client/axios/wrong-headers -> ${serverName} GET /api/hello (server not running)`);
+    else if (typeof e === "object" && e !== null && "response" in e) {
+      const s = (e as { response: { status: number } }).response.status;
+      if (s >= 400 && s < 500) results.push(`PASS typescript-client/axios/wrong-headers -> ${serverName} GET /api/hello (${s})`);
+      else results.push(`FAIL typescript-client/axios/wrong-headers -> ${serverName} GET /api/hello (expected 4xx, got ${s})`);
+    }
+    else results.push(`FAIL typescript-client/axios/wrong-headers -> ${serverName} GET /api/hello (ERR): ${e}`);
+  }
 
   // IT-10: Query string
   await makeRequest(fetchAdapter, "typescript-client/fetch/query", serverName, baseUrl, "GET", "/api/hello?foo=bar&baz=1");

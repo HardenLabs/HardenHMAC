@@ -38,6 +38,8 @@ go get github.com/HardenLabs/hardenhmac-go
 
 ### C# — Server (ASP.NET Core)
 
+Single shared secret. For multiple named clients, see [Multi-Client Server](#multi-client-server).
+
 ```csharp
 using HardenLabs.Hmac;
 using HardenLabs.Hmac.AspNetCore;
@@ -110,6 +112,8 @@ var response = await client.GetAsync("/api/hello"); // automatically signed
 
 ### Python — Server (FastAPI)
 
+Single shared secret. For multiple named clients, see [Multi-Client Server](#multi-client-server).
+
 ```python
 from fastapi import Depends, FastAPI, Request
 from hardenlabs_hmac import HmacValidate, install_hmac_exception_handler
@@ -158,6 +162,8 @@ with factory.create_sync_client("my-service") as client:  # requires [httpx]; or
 ```
 
 ### TypeScript — Server (Express)
+
+Single shared secret. For multiple named clients, see [Multi-Client Server](#multi-client-server).
 
 ```typescript
 import express from "express";
@@ -214,6 +220,8 @@ const postResponse = await client.post("/api/data", JSON.stringify({ key: "value
 ```
 
 ### Go — Server (net/http)
+
+Single shared secret. For multiple named clients, see [Multi-Client Server](#multi-client-server).
 
 ```go
 package main

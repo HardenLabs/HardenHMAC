@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  csharp:
+    name: C# SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build
+        run: dotnet build sdk/csharp/HardenLabs.Hmac.sln -c Release
+      - name: Test
+        run: dotnet test sdk/csharp/HardenLabs.Hmac.sln -c Release --no-build --verbosity normal
+
+  python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e "sdk/python[fastapi,dev]"
+      - name: Test
+        run: cd sdk/python && python -m pytest tests/ -v
+
+  typescript:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: cd sdk/typescript/packages/hmac && npm ci
+      - name: Build
+        run: cd sdk/typescript/packages/hmac && npm run build
+      - name: Test
+        run: cd sdk/typescript/packages/hmac && npx vitest run
+
+  go:
+    name: Go SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Build
+        run: cd sdk/go && go build ./...
+      - name: Test
+        run: cd sdk/go && go test ./... -v
+
+  integration:
+    name: Cross-Language Integration
+    needs: [csharp, python, typescript, go]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Install Python dependencies
+        run: pip install fastapi uvicorn httpx requests -e "sdk/python[fastapi]"
+      - name: Run integration tests
+        run: cd tests/integration && bash run.sh

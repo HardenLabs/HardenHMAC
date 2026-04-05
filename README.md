@@ -87,6 +87,8 @@ public class OrdersController : ControllerBase
 
 ### C# — Client (HttpClient)
 
+Single target. For multiple targets with different secrets, see [Multi-Target Client](#multi-target-client).
+
 ```csharp
 using HardenLabs.Hmac;
 using HardenLabs.Hmac.AspNetCore;
@@ -143,6 +145,8 @@ async def health():
 
 ### Python — Client
 
+Single target. For multiple targets with different secrets, see [Multi-Target Client](#multi-target-client).
+
 ```python
 from hardenlabs_hmac.client import HmacClientFactory
 from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig
@@ -193,6 +197,8 @@ app.listen(3000);
 ```
 
 ### TypeScript — Client
+
+Single target. For multiple targets with different secrets, see [Multi-Target Client](#multi-target-client).
 
 ```typescript
 import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
@@ -256,6 +262,8 @@ func main() {
 ```
 
 ### Go — Client (http.Client)
+
+Single target. For multiple targets with different secrets, see [Multi-Target Client](#multi-target-client).
 
 ```go
 package main

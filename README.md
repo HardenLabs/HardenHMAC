@@ -277,16 +277,149 @@ func main() {
 }
 ```
 
-## Multi-Target Configuration
+## Server Configuration Scenarios
 
-For services that call multiple backends, configure named targets with per-target base URLs and secrets.
+### Single Shared Secret
 
-### C# — Multi-Target Client
+The simplest setup — one secret shared between client and server:
+
+```python
+# Python
+config = HmacConfig(shared_secret_base64="your-base64-encoded-secret")
+```
 
 ```csharp
+// C#
+var config = new HmacConfig { SharedSecretBase64 = "your-base64-encoded-secret" };
+```
+
+```typescript
+// TypeScript
+const config = createHmacConfig("your-base64-encoded-secret");
+```
+
+```go
+// Go
+config := &hardenhmac.HmacConfig{SharedSecretBase64: "your-base64-encoded-secret"}
+```
+
+If a client sends `X-Harden-Client-Id` but the server has no `Clients` configured, the server ignores the client ID and validates using `SharedSecretBase64`.
+
+### Multi-Client Server
+
+For servers that accept requests from multiple known clients, each with their own secret. Clients identify themselves via the `X-Harden-Client-Id` header.
+
+```csharp
+// C#
 var config = new HmacConfig
 {
-    SharedSecretBase64 = "default-secret",  // server-side fallback
+    SharedSecretBase64 = "fallback-secret",  // used when no X-Harden-Client-Id header
+    Clients = new Dictionary<string, HmacClientIdentity>
+    {
+        ["order-service"] = new HmacClientIdentity { SharedSecret = "orders-base64-secret" },
+        ["payment-service"] = new HmacClientIdentity { SharedSecret = "payments-base64-secret" },
+    },
+};
+```
+
+```python
+# Python
+config = HmacConfig(
+    shared_secret_base64="fallback-secret",
+    clients={
+        "order-service": HmacClientIdentity(shared_secret="orders-base64-secret"),
+        "payment-service": HmacClientIdentity(shared_secret="payments-base64-secret"),
+    },
+)
+```
+
+```typescript
+// TypeScript
+const config = createHmacConfig("fallback-secret", {
+  clients: {
+    "order-service": { sharedSecret: "orders-base64-secret" },
+    "payment-service": { sharedSecret: "payments-base64-secret" },
+  },
+});
+```
+
+```go
+// Go
+config := &hardenhmac.HmacConfig{
+	SharedSecretBase64: "fallback-secret",
+	Clients: map[string]hardenhmac.HmacClientIdentity{
+		"order-service":   {SharedSecret: "orders-base64-secret"},
+		"payment-service": {SharedSecret: "payments-base64-secret"},
+	},
+}
+```
+
+### Secret Resolver (Dynamic)
+
+For servers that look up secrets dynamically per-request (e.g., from a database). The resolver runs before the `Clients` dictionary, so it can override or extend the built-in resolution:
+
+```csharp
+// C#
+services.AddHardenHmac(config, secretResolver: async (httpContext) => {
+    var clientId = httpContext.Request.Headers["X-Harden-Client-Id"].FirstOrDefault();
+    return await LookupSecretFromDatabase(clientId);
+});
+```
+
+```python
+# Python
+async def resolve_secret(request):
+    client_id = request.headers.get("x-harden-client-id")
+    return await lookup_secret_from_database(client_id)
+
+hmac_validate = HmacValidate(config, secret_resolver=resolve_secret)
+```
+
+```typescript
+// TypeScript
+const hmacValidate = createHmacValidateMiddleware(config, (req) => {
+  const clientId = req.headers["x-harden-client-id"] as string;
+  return lookupSecretFromDatabase(clientId);
+});
+```
+
+```go
+// Go
+resolver := func(r *http.Request) (string, error) {
+	clientID := r.Header.Get("X-Harden-Client-Id")
+	return lookupSecretFromDatabase(clientID)
+}
+validate := hardenhmac.NewHmacValidateHandler(config, resolver)
+```
+
+If the resolver returns `null` (or empty string in Go), the middleware falls back to the `Clients` dictionary, then to `SharedSecretBase64`.
+
+### Server Secret Resolution Order
+
+The server resolves the shared secret for each request in this order:
+
+1. **Secret resolver callback** (if configured) — use result if non-empty
+2. **`X-Harden-Client-Id` header + `Clients` is non-empty + client found** — use that client's secret
+3. **`X-Harden-Client-Id` header + `Clients` is non-empty + client NOT found** — reject with `401 unknown_client`
+4. **No `X-Harden-Client-Id`, or `Clients` is empty/not configured** — fall back to `SharedSecretBase64`
+5. **Nothing available** — reject with `401 no_secret`
+
+## Client Configuration Scenarios
+
+### Single Target
+
+The Quick Start examples above show single-target usage. The client factory configures base URL, secret, and automatic signing in one call.
+
+The factory also sets `X-Harden-Client-Id` to the target name. This identifies the client to multi-client servers. Single-secret servers ignore it.
+
+### Multi-Target Client
+
+For services that call multiple backends, configure named targets with per-target base URLs and secrets:
+
+```csharp
+// C#
+var config = new HmacConfig
+{
     Targets = new Dictionary<string, HmacTargetConfig>
     {
         ["order-service"] = new HmacTargetConfig
@@ -303,19 +436,13 @@ var config = new HmacConfig
     },
 };
 
-builder.Services.AddHardenHmac(config);
-
-// Inject IHardenHmacClientFactory to create per-target clients
-var client = factory.CreateClient("order-service");
-var response = await client.GetAsync("/api/orders"); // auto-signed, correct base URL
+var factory = new HardenHmacClientFactory(config);
+var ordersClient = factory.CreateClient("order-service");
+var paymentsClient = factory.CreateClient("payment-service");
 ```
 
-### Python — Multi-Target Client
-
 ```python
-from hardenlabs_hmac.client import HmacClientFactory
-from hardenlabs_hmac.config import HmacConfig, HmacTargetConfig
-
+# Python
 config = HmacConfig(
     targets={
         "order-service": HmacTargetConfig(
@@ -331,15 +458,12 @@ config = HmacConfig(
 
 factory = HmacClientFactory(config)
 async with factory.create_client("order-service") as client:
-    response = await client.get("/api/orders")  # auto-signed
+    response = await client.get("/api/orders")  # auto-signed with orders secret
 ```
 
-### TypeScript — Multi-Target Client
-
 ```typescript
-import { createHmacConfig, createHmacClientFactory } from "@hardenlabs/hmac";
-
-const config = createHmacConfig("default-secret", {
+// TypeScript
+const config = createHmacConfig("", {
   targets: {
     "order-service": {
       baseUrl: "https://orders.example.com",
@@ -354,87 +478,30 @@ const config = createHmacConfig("default-secret", {
 
 const factory = createHmacClientFactory(config);
 const ordersClient = factory.createClient("order-service");
-const response = await ordersClient.get("/api/orders"); // auto-signed, correct base URL
 ```
-
-## Multi-Client Server Configuration
-
-For servers that accept requests from multiple known clients, each with their own secret, use the `Clients` dictionary. Clients identify themselves via the `X-Harden-Client-Id` header.
-
-### C# -- Multi-Client Server
-
-```csharp
-var config = new HmacConfig
-{
-    SharedSecretBase64 = "fallback-secret",  // used when no client ID header
-    SignedHeaders = SignedHeadersConfig.Default,
-    TimestampToleranceSeconds = 30,
-    Clients = new Dictionary<string, HmacClientIdentity>
-    {
-        ["order-service"] = new HmacClientIdentity { SharedSecret = "orders-base64-secret" },
-        ["payment-service"] = new HmacClientIdentity { SharedSecret = "payments-base64-secret" },
-    },
-};
-
-builder.Services.AddHardenHmac(config);
-app.UseRouting();
-app.UseHardenHmac();
-
-app.MapGet("/api/orders", () => Results.Ok()).WithMetadata(new HmacValidateAttribute());
-// Requests with X-Harden-Client-Id: order-service -> validated with orders secret
-// Requests with X-Harden-Client-Id: unknown -> rejected with 401 unknown_client
-// Requests without X-Harden-Client-Id -> validated with fallback secret
-```
-
-### Python -- Multi-Client Server
-
-```python
-from hardenlabs_hmac import HmacValidate, install_hmac_exception_handler
-from hardenlabs_hmac.config import HmacClientIdentity, HmacConfig, SignedHeadersConfig
-
-config = HmacConfig(
-    shared_secret_base64="fallback-secret",
-    signed_headers=SignedHeadersConfig.default(),
-    clients={
-        "order-service": HmacClientIdentity(shared_secret="orders-base64-secret"),
-        "payment-service": HmacClientIdentity(shared_secret="payments-base64-secret"),
-    },
-)
-
-hmac_validate = HmacValidate(config)
-install_hmac_exception_handler(app)
-```
-
-### TypeScript -- Multi-Client Server
-
-```typescript
-const config = createHmacConfig("fallback-secret", {
-  clients: {
-    "order-service": { sharedSecret: "orders-base64-secret" },
-    "payment-service": { sharedSecret: "payments-base64-secret" },
-  },
-});
-const hmacValidate = createHmacValidateMiddleware(config);
-app.get("/api/orders", hmacValidate, handler);
-```
-
-### Go -- Multi-Client Server
 
 ```go
+// Go
 config := &hardenhmac.HmacConfig{
-	SharedSecretBase64: "fallback-secret",
-	SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
-	Clients: map[string]hardenhmac.HmacClientIdentity{
-		"order-service":   {SharedSecret: "orders-base64-secret"},
-		"payment-service": {SharedSecret: "payments-base64-secret"},
+	Targets: map[string]hardenhmac.HmacTargetConfig{
+		"order-service": {
+			BaseURL:      "https://orders.example.com",
+			SharedSecret: "orders-base64-secret",
+		},
+		"payment-service": {
+			BaseURL:      "https://payments.example.com",
+			SharedSecret: "payments-base64-secret",
+		},
 	},
 }
 
-validate := hardenhmac.NewHmacValidateHandler(config, nil)
-mux.Handle("/api/orders", validate(ordersHandler))
+factory := hardenhmac.NewClientFactory(config)
+ordersClient, _ := factory.CreateClient("order-service")
 ```
 
-The client factory automatically adds the `X-Harden-Client-Id` header when creating clients via `CreateClient`/`createClient`.
+Each target can override `SignedHeaders` and `TimestampToleranceSeconds`. If not set, the global config values are used.
+
+The client factory automatically adds `X-Harden-Client-Id` set to the target name when creating clients via `CreateClient`/`createClient`.
 
 ## Environment Variable Configuration
 
@@ -461,46 +528,6 @@ HARDEN_HMAC_TARGETS__PAYMENT_SERVICE__SHARED_SECRET=payments-base64-secret
 **TypeScript**: `config = fromEnv()` — optionally loads `.env` via dotenv if installed as peer dependency.
 
 **Go**: `config, err := hardenhmac.FromEnv("HARDEN_HMAC_")` — parses targets, clients, and global settings from environment variables.
-
-## Multi-Tenant Server (Secret Resolver)
-
-For servers that validate requests from multiple clients with different secrets:
-
-```csharp
-// C# — resolve secret per-request
-services.AddHardenHmac(config, secretResolver: async (httpContext) => {
-    var clientId = httpContext.Request.Headers["X-Client-Id"].FirstOrDefault();
-    return await LookupSecret(clientId);
-});
-```
-
-```python
-# Python — resolve secret per-request
-async def resolve_secret(request):
-    client_id = request.headers.get("x-client-id")
-    return await lookup_secret(client_id)
-
-hmac_validate = HmacValidate(config, secret_resolver=resolve_secret)
-```
-
-```typescript
-// TypeScript — resolve secret per-request
-const hmacValidate = createHmacValidateMiddleware(config, (req) => {
-  const clientId = req.headers["x-client-id"] as string;
-  return lookupSecret(clientId);
-});
-```
-
-```go
-// Go — resolve secret per-request
-resolver := func(r *http.Request) (string, error) {
-	clientID := r.Header.Get("X-Client-Id")
-	return lookupSecret(clientID)
-}
-validate := hardenhmac.NewHmacValidateHandler(config, resolver)
-```
-
-If the resolver returns `null` (or empty string in Go), the middleware falls back to `config.SharedSecretBase64`.
 
 ## What HardenHMAC Does NOT Do
 
@@ -664,24 +691,7 @@ Server-side middleware rejects requests outside the tolerance window (default: 3
 
 ## Contributing
 
-Contributions are welcome. Please ensure:
-
-1. All four language implementations pass the cross-language test vectors
-2. New features must include test vectors if they affect the canonical string or signature
-3. Run all tests before submitting a PR:
-   ```bash
-   # C#
-   cd sdk/csharp && dotnet test
-
-   # Python
-   cd sdk/python && pytest tests/ -v
-
-   # TypeScript
-   cd sdk/typescript/packages/hmac && npm test
-
-   # Go
-   cd sdk/go && go test ./... -v
-   ```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report issues, set up your development environment, and submit pull requests.
 
 ## License
 

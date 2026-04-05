@@ -33,7 +33,7 @@ public sealed class HardenHmacClientFactory : IHardenHmacClientFactory
         }
 
         var effectiveConfig = _config.ForTarget(targetName);
-        var handler = new HardenHmacDelegatingHandler(effectiveConfig, clientId: targetName);
+        var handler = new HardenHmacDelegatingHandler(effectiveConfig, new HttpClientHandler(), clientId: targetName);
         var client = new HttpClient(handler);
 
         if (!string.IsNullOrEmpty(target.BaseUrl))

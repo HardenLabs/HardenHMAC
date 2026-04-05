@@ -8,12 +8,14 @@ import express from "express";
 import type { Request } from "express";
 import {
   createHmacConfig,
+  createHmacValidateMiddleware,
+  fromEnv,
   hardenHmacMiddleware,
-  noneSignedHeadersConfig,
   type SecretResolver,
 } from "@hardenlabs/hmac";
 
 // Secrets (in production, load from environment/secrets manager)
+// const config = await fromEnv();  // reads HARDEN_HMAC_* environment variables
 const defaultSecret = Buffer.from("my-shared-secret-key-32-bytes!!").toString(
   "base64"
 );
@@ -25,8 +27,8 @@ const paymentsSecret = Buffer.from("payments-secret-key-32-bytes!!").toString(
 );
 
 const config = createHmacConfig(defaultSecret, {
-  signedHeaders: noneSignedHeadersConfig(),
   timestampToleranceSeconds: 30,
+  // For custom headers: { includeAuthorization: true, includeXHeaders: true, additionalHeaders: ["X-Request-Id"], excludeHeaders: ["X-Debug"] }
 });
 
 // ── Option A: Multi-client server with named clients ──
@@ -42,14 +44,19 @@ const multiClientConfig = {
 
 const simpleApp = express();
 simpleApp.use(express.text({ type: "*/*" }));
-simpleApp.use(hardenHmacMiddleware(multiClientConfig));
 
-simpleApp.get("/api/hello", (_req, res) => {
+const hmacValidate = createHmacValidateMiddleware(multiClientConfig);
+
+simpleApp.get("/api/hello", hmacValidate, (_req, res) => {
   res.json({ message: "Hello from HardenHMAC!" });
 });
 
-simpleApp.post("/api/echo", (req, res) => {
+simpleApp.post("/api/echo", hmacValidate, (req, res) => {
   res.json({ echo: req.body });
+});
+
+simpleApp.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
 });
 
 // ── Option B: Multi-tenant server with secret resolver ──

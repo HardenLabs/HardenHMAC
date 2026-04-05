@@ -20,6 +20,8 @@ function buildHmacHandler(
   config: HmacConfig,
   secretResolver?: SecretResolver
 ): (req: Request, res: Response, next: NextFunction) => void {
+  const hasConfiguredClients = !!(config.clients && Object.keys(config.clients).length > 0);
+
   return (req: Request, res: Response, next: NextFunction): void => {
     // Collect body as string.
     // Reject parsed objects — they cannot be reliably re-serialized to the original wire format.
@@ -113,8 +115,8 @@ function buildHmacHandler(
 
       // 2. X-Harden-Client-Id header -> look up in config.clients
       const clientId = requestHeaders[CLIENT_ID_HEADER.toLowerCase()];
-      if (clientId) {
-        const clientIdentity = config.clients?.[clientId];
+      if (clientId && hasConfiguredClients) {
+        const clientIdentity = config.clients![clientId];
         if (clientIdentity?.sharedSecret) {
           validateWithSecret(clientIdentity.sharedSecret);
           return;

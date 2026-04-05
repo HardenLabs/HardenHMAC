@@ -15,28 +15,33 @@ import (
 )
 
 func main() {
-	secret := "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24="
+	apiSecret := "dGVzdC1zZWNyZXQta2V5LWZvci1obWFjLXZhbGlkYXRpb24="
+	dataSecret := "ZGF0YS1zZXJ2ZXItc2VjcmV0LWtleS0zMi1ieXRlcyE="
 
 	config := &hardenhmac.HmacConfig{
-		SharedSecretBase64: secret,
-		SignedHeaders:      hardenhmac.DefaultSignedHeadersConfig(),
+		SignedHeaders: hardenhmac.DefaultSignedHeadersConfig(),
 		Targets: map[string]hardenhmac.HmacTargetConfig{
-			"backend": {
+			"api-server": {
 				BaseURL:      "http://localhost:8080",
-				SharedSecret: secret,
+				SharedSecret: apiSecret,
+			},
+			"data-server": {
+				BaseURL:      "http://localhost:8081",
+				SharedSecret: dataSecret,
 			},
 		},
 	}
 
 	factory := hardenhmac.NewClientFactory(config)
-	client, err := factory.CreateClient("backend")
+
+	// api-server: GET request
+	apiClient, err := factory.CreateClient("api-server")
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		log.Fatalf("Failed to create api-server client: %v", err)
 	}
 
-	// GET request
-	fmt.Println("--- GET /api/health ---")
-	resp, err := client.Get("/api/health")
+	fmt.Println("--- GET api-server /api/health ---")
+	resp, err := apiClient.Get("/api/health")
 	if err != nil {
 		log.Fatalf("GET failed: %v", err)
 	}
@@ -44,9 +49,14 @@ func main() {
 	resp.Body.Close()
 	fmt.Printf("Status: %d\nBody: %s\n", resp.StatusCode, string(body))
 
-	// POST request
-	fmt.Println("\n--- POST /api/data ---")
-	resp, err = client.Post("/api/data", "application/json", `{"key":"value"}`)
+	// data-server: POST request
+	dataClient, err := factory.CreateClient("data-server")
+	if err != nil {
+		log.Fatalf("Failed to create data-server client: %v", err)
+	}
+
+	fmt.Println("\n--- POST data-server /api/data ---")
+	resp, err = dataClient.Post("/api/data", "application/json", `{"key":"value"}`)
 	if err != nil {
 		log.Fatalf("POST failed: %v", err)
 	}
